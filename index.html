@@ -319,6 +319,15 @@ function masParecido(nombre,lista){
   return nota>=.72?mejor:null;
 }
 const ctxTema=(c,a)=>clave(c)+'|'+clave(a)+'|';
+/* Eliminar un nombre = una «unión» con este destino especial: sus preguntas dejan de salir (se puede deshacer) */
+const OCULTO='__oculto__';
+const esOculto=q=>q.curso===OCULTO||q.asignatura===OCULTO||q.tema===OCULTO;
+/* ¿Esta pregunta cae dentro de un nombre eliminado? (para avisar al volver a subir algo con ese nombre) */
+function tocaOculto(q,o){
+  if(o.tipo==='curso')return clave(q.curso)===o.de;
+  if(o.tipo==='asignatura')return clave(q.asignatura)===o.de;
+  return ctxTema(q.curso,q.asignatura)+clave(q.tema)===o.de;
+}
 /* Aplica las uniones guardadas y deja un único nombre visible por clave (el primero que apareció) */
 function canonizar(listas,alias){
   const A={};(alias||[]).forEach(x=>{A[x.tipo+':'+x.de]=x.a});
@@ -388,12 +397,31 @@ const SI=/^(si|sí|true|1|yes|correcta|x)$/i;
 const hijos=(n,nombres)=>Array.from(n.children).filter(c=>nombres.indexOf(c.localName.toLowerCase())>=0);
 const esVF=q=>q.opciones.length===2&&/^verdadero$/i.test(q.opciones[0])&&/^falso$/i.test(q.opciones[1]);
 /* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos */
-function arreglarXML(t){
+/* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos.
+   Si la respuesta se cortó a medias (pasa con la versión gratis de ChatGPT), se queda con las
+   preguntas completas, quita la última a medias y cierra el archivo. */
+function arreglarXMLInfo(t){
   t=String(t||'').replace(/^﻿/,'').replace(/```[a-z]*\s*/gi,'');
-  const i=t.search(/<\?xml|<banco[\s>]/i),j=t.toLowerCase().lastIndexOf('</banco>');
-  if(i>=0&&j>i)t=t.slice(i,j+8);
-  return t.trim().replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/gi,'&amp;');
+  const i=t.search(/<\?xml|<banco[\s>]/i);if(i>0)t=t.slice(i);
+  const info={cortado:false,descartada:false};
+  const j=t.toLowerCase().lastIndexOf('</banco>');
+  if(j>=0)t=t.slice(0,j+8);
+  else{
+    const k=t.toLowerCase().lastIndexOf('</pregunta>');
+    if(k<0&&/<pregunta[\s>]/i.test(t))info.sinCompletas=true;
+    if(k>=0){
+      info.cortado=true;
+      info.descartada=/<pregunta[\s>]/i.test(t.slice(k+11));
+      t=t.slice(0,k+11);
+      const pila=[],re=/<(\/?)(banco|curso|asignatura|tema)\b[^>]*?(\/?)>/gi;let m;
+      while((m=re.exec(t))){if(m[3])continue;if(m[1]){const x=pila.lastIndexOf(m[2].toLowerCase());if(x>=0)pila.length=x}else pila.push(m[2].toLowerCase())}
+      t+='\n'+pila.reverse().map(n=>'</'+n+'>').join('\n');
+    }
+  }
+  info.xml=t.trim().replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/gi,'&amp;');
+  return info;
 }
+const arreglarXML=t=>arreglarXMLInfo(t).xml;
 function heredar(n,campo){
   let el=n;
   while(el&&el.nodeType===1){
@@ -515,7 +543,7 @@ const Datos={
     canonizar(todos.map(a=>a.preguntas).concat(todos.map(a=>a.todas||[])),this.alias);
     const m=new Map();
     todos.forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;m.set(q.id,q)}));
-    this.base=Array.from(m.values());
+    this.base=Array.from(m.values()).filter(q=>!esOculto(q));
   },
   todas(){
     if(!this.extra.length)return this.base;
@@ -556,7 +584,7 @@ function conBoton(btn,texto,fn){
 
 /* ---------- estado y navegación ---------- */
 const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
-  imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:15,xml:''}),rev:null};
+  imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),rev:null};
 const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres()};
 function ir(p){
   E.pant=p;E.sesion=null;PANT[p]();
@@ -818,13 +846,13 @@ function renderImportar(){
       '<div class="field"><label class="lbl-f" for="iAsig">Asignatura</label><input class="in" id="iAsig" list="dl-a" data-imp="asignatura" value="'+esc(i.asignatura)+'" placeholder="Ej.: Ciencias Naturales"><p class="hint hint-nombre" id="hn-asignatura" aria-live="polite"></p></div>'+
       '<div class="field"><label class="lbl-f" for="iTema">Tema</label><input class="in" id="iTema" list="dl-t" data-imp="tema" value="'+esc(i.tema)+'" placeholder="Ej.: Tema 3: Las plantas"><p class="hint hint-nombre" id="hn-tema" aria-live="polite"></p></div>'+
       '<div class="field"><span class="lbl-f" id="lblIn">Cuántas preguntas</span><div class="chips" role="group" aria-labelledby="lblIn">'+
-        [10,15,20,30].map(n=>'<button class="chip" data-impn="'+n+'" aria-pressed="'+(i.n===n)+'">'+n+'</button>').join('')+'</div></div>'+
+        [10,15,20,30].map(n=>'<button class="chip" data-impn="'+n+'" aria-pressed="'+(i.n===n)+'">'+n+'</button>').join('')+'</div><p class="hint">Con la versión gratis de ChatGPT, mejor 10: si pides muchas, la respuesta se corta.</p></div>'+
     '</div></div>'+
     '<div class="paso"><span class="num">2</span><div><b>Copia este texto y pégalo en una IA</b><p>Sirve ChatGPT, Gemini o Claude. Después de pegarlo, adjunta fotos de las páginas del libro o tus apuntes y envíalo.</p>'+
       '<div class="field"><label class="sr" for="prompt">Texto para la IA</label><textarea class="in prompt" id="prompt" readonly>'+esc(promptTexto())+'</textarea></div>'+
       '<button class="btn" data-a="copiarPrompt">'+ic('copy')+'Copiar texto</button>'+
     '</div></div>'+
-    '<div class="paso"><span class="num">3</span><div><b>Pega aquí lo que te conteste</b><p>Copia toda la respuesta de la IA (empieza por &lt;?xml) y pégala aquí. También puedes elegir un archivo .xml.</p>'+
+    '<div class="paso"><span class="num">3</span><div><b>Pega aquí lo que te conteste</b><p>Copia toda la respuesta de la IA (empieza por &lt;?xml) y pégala aquí. Si se cortó a medias, no pasa nada: se aprovechan las preguntas completas.</p>'+
       '<div class="field"><label class="sr" for="iXml">Respuesta de la IA</label><textarea class="in pegar" id="iXml" data-imp="xml" placeholder="&lt;?xml version=&quot;1.0&quot; ...&gt;" autocapitalize="off" autocorrect="off" spellcheck="false">'+esc(i.xml)+'</textarea></div>'+
       '<div class="stack"><button class="btn" data-a="revisar">'+ic('search')+'Revisar preguntas</button>'+
       '<button class="link" data-a="elegirXml">'+ic('file')+'Elegir un archivo .xml</button></div>'+
@@ -862,7 +890,9 @@ async function copiarPrompt(){
 function revisar(){
   const txt=E.imp.xml;
   if(!norm(txt)){toast('Pega primero la respuesta de la IA.');$('#iXml').focus();return}
-  try{E.rev={res:parsearXML(arreglarXML(txt),''),dec:{}}}catch(err){E.rev={error:err.message}}
+  try{const a=arreglarXMLInfo(txt);
+    if(a.sinCompletas){E.rev={error:'La respuesta de la IA se cortó antes de terminar la primera pregunta.',pista:'Vuelve a pedírselo eligiendo 10 preguntas, o escríbele «continúa» y pega aquí la respuesta entera.'};pintarRevision();irA('#rev');return}
+    E.rev={res:parsearXML(a.xml,''),dec:{},cortado:a.cortado,descartada:a.descartada}}catch(err){E.rev={error:err.message}}
   pintarRevision();irA('#rev');
 }
 /* Compara los nombres del XML nuevo con los que ya existen.
@@ -896,11 +926,12 @@ function nombresImport(lista,dec){
 function pintarRevision(){
   const r=E.rev,box=$('#rev');if(!box||!r)return;
   if(r.error){
-    box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».')+'</section>';
+    box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>'+esc(r.pista||'Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».'))+'</section>';
     return;
   }
   const res=r.res,{props,mapear}=nombresImport(res.ok,r.dec);
   r.lista=res.ok.map(mapear);r.mapear=mapear;
+  r.reabrir=Datos.alias.filter(o=>o.a===OCULTO&&r.lista.some(q=>tocaOculto(q,o)));
   const ex=new Set(Datos.base.map(q=>q.id)),nuevas=r.lista.filter(q=>!ex.has(q.id)).length,act=r.lista.length-nuevas;
   const temas={};r.lista.forEach(q=>{const t=q.curso+' · '+q.asignatura+' · '+q.tema;(temas[t]=temas[t]||[]).push(q)});
   const TIPO={curso:'Curso',asignatura:'Asignatura',tema:'Tema'};
@@ -910,6 +941,8 @@ function pintarRevision(){
         '<div class="chips" role="group" aria-label="¿Es el mismo nombre?">'+
         '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="1" aria-pressed="'+p.usar+'">Sí, es el mismo</button>'+
         '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="0" aria-pressed="'+!p.usar+'">No, es otro</button></div></div>').join('')+'</div>':'')+
+    (r.reabrir.length?aviso('info','Vas a subir preguntas de '+r.reabrir.map(o=>'«'+esc(o.original||o.de)+'»').join(', ')+', que estaba eliminado. Al subirlas volverá a aparecer.'):'')+
+    (r.cortado?aviso('info','<b>La respuesta de la IA se cortó antes de terminar.</b> No pasa nada: se han aprovechado las '+plural(r.lista.length,'pregunta completa','preguntas completas')+(r.descartada?' y se ha quitado la última, que estaba a medias':'')+'. Si quieres más, pide otra tanda en la IA.'):'')+
     (r.lista.length?'<p>'+plural(r.lista.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
     (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
     Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div>').join('')+
@@ -926,7 +959,7 @@ function nombreDe(lista,i){
 async function subirImp(btn){
   const r=E.rev;if(!r||!r.res)return;
   try{
-    await conBoton(btn,'Subiendo…',()=>subirXML(r.lista,nombreDe(r.lista,E.imp)));
+    await conBoton(btn,'Subiendo…',async()=>{for(const o of r.reabrir||[])await servidorPost({accion:'quitarAlias',id:o.id});return subirXML(r.lista,nombreDe(r.lista,E.imp))});
     const n=r.lista.length;
     E.imp.xml='';E.rev=null;guardarImp();
     renderImportar();
@@ -956,23 +989,45 @@ function paresParecidos(g){
 const TIPO_N={curso:'curso',asignatura:'asignatura',tema:'tema'};
 function filaNombre(g,n){
   return '<div class="ses"><span>'+esc(n)+'<small>'+plural(g.items[n],'pregunta','preguntas')+'</small></span>'+
-    (Object.keys(g.items).length>1?'<button class="link" data-a="unirCon" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'">Unir con…</button>':'')+'</div>';
+    '<div class="acts">'+(Object.keys(g.items).length>1?'<button class="link" data-a="unirCon" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'">Unir con…</button>':'')+
+    '<button class="icbtn" data-a="eliminarNombre" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'" aria-label="Eliminar '+esc(n)+'">'+ic('trash')+'</button></div></div>';
 }
 function renderNombres(){
   const G=gruposNombres(),pares=[].concat(...G.map(paresParecidos));
   const lista=arr=>unicos(Object.keys(arr));
   let h='<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
     '<p class="eyebrow" style="margin-top:16px">Nombres</p><h1>Cursos, asignaturas y temas</h1>'+
-    '<p class="sub">Si algo aparece repetido porque se escribió de dos formas, únelo aquí. No se borra ninguna pregunta: solo pasan a estar juntas.</p>';
+    '<p class="sub">Si algo aparece repetido porque se escribió de dos formas, únelo. Si es de prueba o ya no sirve, elimínalo con la papelera.</p>';
   if(!CONFIG.servidor)h+=aviso('info','Para unir nombres hace falta el servidor.');
   if(pares.length)h+='<section class="sec-block"><h2>Parecen repetidos</h2><div>'+pares.map(p=>
     '<div class="ses"><span>«'+esc(p.de)+'» y «'+esc(p.a)+'»<small>'+(p.g.tipo==='tema'?'Tema de '+esc(p.g.titulo):p.g.tipo==='curso'?'Curso':'Asignatura')+'</small></span>'+
     '<button class="link" data-a="unirPar" data-t="'+p.g.tipo+'" data-ctx="'+esc(p.g.ctx)+'" data-de="'+esc(p.de)+'" data-dest="'+esc(p.a)+'">Unir</button></div>').join('')+'</div></section>';
   G.filter(g=>g.tipo!=='tema').forEach(g=>{h+='<section class="sec-block"><h2>'+g.titulo+'</h2><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div></section>'});
   h+='<section class="sec-block"><h2>Temas</h2>'+G.filter(g=>g.tipo==='tema').map(g=>'<p class="res-t">'+esc(g.titulo)+'</p><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div>').join('')+'</section>';
-  if(Datos.alias.length)h+='<section class="sec-block"><h2>Uniones hechas</h2><div>'+Datos.alias.map(x=>
+  const uniones=Datos.alias.filter(x=>x.a!==OCULTO),borrados=Datos.alias.filter(x=>x.a===OCULTO);
+  if(borrados.length)h+='<section class="sec-block"><h2>Eliminados</h2><div>'+borrados.map(x=>
+    '<div class="ses"><span>«'+esc(x.original||x.de)+'»<small>'+(TIPO_N[x.tipo]||'')+'</small></span><button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">Recuperar</button></div>').join('')+'</div></section>';
+  if(uniones.length)h+='<section class="sec-block"><h2>Uniones hechas</h2><div>'+uniones.map(x=>
     '<div class="ses"><span>«'+esc(x.original||x.de)+'» → «'+esc(x.a)+'»<small>'+(TIPO_N[x.tipo]||'')+'</small></span><button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">Deshacer</button></div>').join('')+'</div></section>';
   app.innerHTML=h;
+}
+/* Eliminar un curso, asignatura o tema:
+   - las subidas que solo tienen preguntas de ese nombre se quitan (como «Quitar» en Preguntas)
+   - si quedan preguntas suyas en otros archivos (por ejemplo, los de ejemplo), se ocultan
+   Nada se borra de la hoja: se puede recuperar. */
+async function eliminarNombre(tipo,ctx,nombre){
+  const toca=q=>tipo==='tema'?ctxTema(q.curso,q.asignatura)===ctx&&q.tema===nombre:q[tipo]===nombre;
+  const qs=Datos.base.filter(toca);
+  const subidas=Datos.subidas.filter(s=>s.preguntas.length&&s.preguntas.every(toca));
+  const enSubidas=new Set();subidas.forEach(s=>s.preguntas.forEach(q=>enSubidas.add(q)));
+  const resto=qs.filter(q=>!enSubidas.has(q));
+  const que=tipo==='curso'?'el curso':tipo==='asignatura'?'la asignatura':'el tema';
+  if(!confirm('¿Eliminar '+que+' «'+nombre+'»? Dejarán de salir sus '+plural(qs.length,'pregunta','preguntas')+'.'))return;
+  try{
+    for(const s of subidas)await servidorPost({accion:'retirar',id:s.id});
+    if(resto.length)await servidorPost({accion:'alias',tipo,de:ctx+clave(nombre),a:OCULTO,original:nombre});
+    await Datos.cargar();renderNombres();toast('«'+nombre+'» eliminado.');
+  }catch(e){toast('No se ha podido eliminar: '+e.message+'.')}
 }
 async function hacerUnion(tipo,ctx,de,a){
   if(clave(de)===clave(a))return;
@@ -1204,6 +1259,7 @@ const A={
       '<div class="field"><label class="lbl-f" for="unirSel">Unir con</label><select class="in" id="unirSel">'+otros.map(n=>'<option>'+esc(n)+'</option>').join('')+'</select></div>'+
       '<div class="stack"><button class="btn" data-a="confirmarUnion">Unir</button><button class="btn sec" data-a="cerrar">Cancelar</button></div>');
   },
+  eliminarNombre:el=>eliminarNombre(el.dataset.t,el.dataset.ctx,el.dataset.de),
   confirmarUnion:el=>{const u=E.union,v=$('#unirSel').value;if(!u||!v)return;conBoton(el,'Uniendo…',()=>hacerUnion(u.tipo,u.ctx,u.de,v))},
   deshacerAlias:async el=>{
     try{await servidorPost({accion:'quitarAlias',id:el.dataset.id});await Datos.cargar();renderNombres();toast('Unión deshecha.')}
