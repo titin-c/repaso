@@ -10,5 +10,5 @@ Quiz para repasar los temas del cole. Se usa desde el navegador en cualquier dis
 
 - **Publicación:** GitHub Pages (Settings → Pages → Deploy from a branch → `main` / `root`).
 - **Servidor de preguntas y resultados:** Google Apps Script + Google Sheets, gratuito. Instrucciones en [`servidor-google/INSTALAR.md`](servidor-google/INSTALAR.md). Después hay que pegar su URL en `CONFIG.servidor` dentro de `index.html`.
-- **Preguntas de base (opcional):** los `.xml` de la carpeta `preguntas/` también se cargan. Los de ahora son ejemplos y se pueden borrar.
+- **Preguntas de base (opcional):** si pones archivos `.xml` en una carpeta `preguntas/` del repositorio, también se cargan.
 - **Cómo se combinan:** primero las de `preguntas/` y después las subidas, de la más antigua a la más reciente. Si dos preguntas tienen el mismo `id`, gana la más reciente. Nunca se borra nada.

@@ -205,6 +205,10 @@ textarea.in.pegar{min-height:180px;font-size:14px;font-family:ui-monospace,SFMon
 .nombre-p .eyebrow{font-size:11px}
 .hint-nombre{margin-top:8px;font-size:14px}
 .hint-nombre .link{min-height:0;padding:0;margin-left:6px}
+.lbtn .chev{margin-left:auto;color:var(--muted)}
+.zona-peligro{margin-top:32px;padding-top:20px;border-top:1px solid var(--line)}
+.btn.peligro{color:var(--err-ink);border-color:var(--err)}
+.btn.peligro .ic{color:var(--err)}
 .res-t{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -585,11 +589,11 @@ function conBoton(btn,texto,fn){
 /* ---------- estado y navegación ---------- */
 const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
   imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),rev:null};
-const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres()};
+const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres(),nombre:()=>renderNombre()};
 function ir(p){
   E.pant=p;E.sesion=null;PANT[p]();
   document.querySelectorAll('.nav [data-a]').forEach(b=>{
-    if(b.dataset.a===p||((p==='editor'||p==='importar'||p==='nombres')&&b.dataset.a==='preguntas'))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+    if(b.dataset.a===p||((p==='editor'||p==='importar'||p==='nombres'||p==='nombre')&&b.dataset.a==='preguntas'))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
   });
   window.scrollTo(0,0);
 }
@@ -752,7 +756,7 @@ function filaArchivo(a,tipo){
     (a.errores.length?' · <span class="e">'+plural(a.errores.length,'con error','con errores')+'</span>':'')+'</small>'+
     (a.errores.length?'<ul class="errs">'+a.errores.slice(0,10).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'')+'</div>'+
     '<div class="acts"><button class="icbtn" data-a="editarArch" data-t="'+tipo+'" data-id="'+esc(tipo==='s'?a.id:a.nombre)+'" aria-label="Editar '+esc(a.nombre)+'">'+ic('edit')+'</button>'+
-    (tipo==='s'?'<button class="icbtn" data-a="retirar" data-id="'+esc(a.id)+'" aria-label="Quitar '+esc(a.nombre)+'">'+ic('trash')+'</button>':'')+'</div></div>';
+    '</div></div>';
 }
 function renderPreguntas(){
   let h='<p class="eyebrow">Preguntas</p><h1>Banco de preguntas</h1><p class="sub">Añade preguntas nuevas cuando empieces un tema. Las que ya hay no se borran.</p>';
@@ -988,52 +992,82 @@ function paresParecidos(g){
 }
 const TIPO_N={curso:'curso',asignatura:'asignatura',tema:'tema'};
 function filaNombre(g,n){
-  return '<div class="ses"><span>'+esc(n)+'<small>'+plural(g.items[n],'pregunta','preguntas')+'</small></span>'+
-    '<div class="acts">'+(Object.keys(g.items).length>1?'<button class="link" data-a="unirCon" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'">Unir con…</button>':'')+
-    '<button class="icbtn" data-a="eliminarNombre" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'" aria-label="Eliminar '+esc(n)+'">'+ic('trash')+'</button></div></div>';
+  return '<button class="lbtn" data-a="verNombre" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'"><span>'+esc(n)+'<small>'+plural(g.items[n],'pregunta','preguntas')+'</small></span><span class="chev">'+ic('arrow')+'</span></button>';
 }
 function renderNombres(){
   const G=gruposNombres(),pares=[].concat(...G.map(paresParecidos));
   const lista=arr=>unicos(Object.keys(arr));
   let h='<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
     '<p class="eyebrow" style="margin-top:16px">Nombres</p><h1>Cursos, asignaturas y temas</h1>'+
-    '<p class="sub">Si algo aparece repetido porque se escribió de dos formas, únelo. Si es de prueba o ya no sirve, elimínalo con la papelera.</p>';
-  if(!CONFIG.servidor)h+=aviso('info','Para unir nombres hace falta el servidor.');
+    '<p class="sub">Toca un nombre para cambiarlo, unirlo con otro o eliminarlo.</p>';
+  if(!CONFIG.servidor)h+=aviso('info','Para hacer cambios hace falta el servidor.');
   if(pares.length)h+='<section class="sec-block"><h2>Parecen repetidos</h2><div>'+pares.map(p=>
     '<div class="ses"><span>«'+esc(p.de)+'» y «'+esc(p.a)+'»<small>'+(p.g.tipo==='tema'?'Tema de '+esc(p.g.titulo):p.g.tipo==='curso'?'Curso':'Asignatura')+'</small></span>'+
     '<button class="link" data-a="unirPar" data-t="'+p.g.tipo+'" data-ctx="'+esc(p.g.ctx)+'" data-de="'+esc(p.de)+'" data-dest="'+esc(p.a)+'">Unir</button></div>').join('')+'</div></section>';
   G.filter(g=>g.tipo!=='tema').forEach(g=>{h+='<section class="sec-block"><h2>'+g.titulo+'</h2><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div></section>'});
   h+='<section class="sec-block"><h2>Temas</h2>'+G.filter(g=>g.tipo==='tema').map(g=>'<p class="res-t">'+esc(g.titulo)+'</p><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div>').join('')+'</section>';
-  const uniones=Datos.alias.filter(x=>x.a!==OCULTO),borrados=Datos.alias.filter(x=>x.a===OCULTO);
-  if(borrados.length)h+='<section class="sec-block"><h2>Eliminados</h2><div>'+borrados.map(x=>
-    '<div class="ses"><span>«'+esc(x.original||x.de)+'»<small>'+(TIPO_N[x.tipo]||'')+'</small></span><button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">Recuperar</button></div>').join('')+'</div></section>';
-  if(uniones.length)h+='<section class="sec-block"><h2>Uniones hechas</h2><div>'+uniones.map(x=>
-    '<div class="ses"><span>«'+esc(x.original||x.de)+'» → «'+esc(x.a)+'»<small>'+(TIPO_N[x.tipo]||'')+'</small></span><button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">Deshacer</button></div>').join('')+'</div></section>';
+  if(Datos.alias.length)h+='<section class="sec-block"><h2>Historial de cambios</h2><div>'+Datos.alias.slice().reverse().map(x=>{
+    const borrado=x.a===OCULTO;
+    return '<div class="ses"><span>'+(borrado?'«'+esc(x.original||x.de)+'» eliminado':'«'+esc(x.original||x.de)+'» → «'+esc(x.a)+'»')+'<small>'+(TIPO_N[x.tipo]||'')+'</small></span>'+
+      '<button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">'+(borrado?'Recuperar':'Deshacer')+'</button></div>';
+  }).join('')+'</div></section>';
   app.innerHTML=h;
 }
-/* Eliminar un curso, asignatura o tema:
-   - las subidas que solo tienen preguntas de ese nombre se quitan (como «Quitar» en Preguntas)
-   - si quedan preguntas suyas en otros archivos (por ejemplo, los de ejemplo), se ocultan
-   Nada se borra de la hoja: se puede recuperar. */
+/* Eliminar un curso, asignatura o tema: sus preguntas dejan de salir, pero no se borra nada.
+   Se puede recuperar desde «Historial de cambios». */
 async function eliminarNombre(tipo,ctx,nombre){
   const toca=q=>tipo==='tema'?ctxTema(q.curso,q.asignatura)===ctx&&q.tema===nombre:q[tipo]===nombre;
-  const qs=Datos.base.filter(toca);
-  const subidas=Datos.subidas.filter(s=>s.preguntas.length&&s.preguntas.every(toca));
-  const enSubidas=new Set();subidas.forEach(s=>s.preguntas.forEach(q=>enSubidas.add(q)));
-  const resto=qs.filter(q=>!enSubidas.has(q));
+  const n=Datos.base.filter(toca).length;
   const que=tipo==='curso'?'el curso':tipo==='asignatura'?'la asignatura':'el tema';
-  if(!confirm('¿Eliminar '+que+' «'+nombre+'»? Dejarán de salir sus '+plural(qs.length,'pregunta','preguntas')+'.'))return;
+  if(!confirm('¿Eliminar '+que+' «'+nombre+'»? Dejarán de salir sus '+plural(n,'pregunta','preguntas')+'. Podrás recuperarlo desde el historial.'))return;
   try{
-    for(const s of subidas)await servidorPost({accion:'retirar',id:s.id});
-    if(resto.length)await servidorPost({accion:'alias',tipo,de:ctx+clave(nombre),a:OCULTO,original:nombre});
-    await Datos.cargar();renderNombres();toast('«'+nombre+'» eliminado.');
+    await servidorPost({accion:'alias',tipo,de:ctx+clave(nombre),a:OCULTO,original:nombre});
+    await Datos.cargar();ir('nombres');toast('«'+nombre+'» eliminado. Puedes recuperarlo desde el historial.');
   }catch(e){toast('No se ha podido eliminar: '+e.message+'.')}
+}
+/* ---------- ficha de un curso, asignatura o tema ---------- */
+const TIPO_T={curso:'Curso',asignatura:'Asignatura',tema:'Tema'};
+function grupoDe(tipo,ctx){return gruposNombres().find(g=>g.tipo===tipo&&g.ctx===ctx)}
+function renderNombre(){
+  const n=E.nom,g=n&&grupoDe(n.tipo,n.ctx);
+  if(!g||!g.items[n.nombre]){ir('nombres');return}
+  const cuantas=g.items[n.nombre],otros=unicos(Object.keys(g.items)).filter(x=>x!==n.nombre);
+  const P=Datos.base,dentro=n.tipo==='curso'?unicos(P.filter(q=>q.curso===n.nombre).map(q=>q.asignatura)):
+    n.tipo==='asignatura'?unicos(P.filter(q=>q.asignatura===n.nombre).map(q=>q.curso)):[];
+  const contexto=n.tipo==='tema'?g.titulo:n.tipo==='curso'?(dentro.length?'Asignaturas: '+dentro.join(', '):''):(dentro.length?'Cursos: '+dentro.join(', '):'');
+  const sinSrv=!CONFIG.servidor;
+  app.innerHTML=
+    '<button class="link" data-a="nombres">'+ic('back')+'Cursos, asignaturas y temas</button>'+
+    '<p class="eyebrow" style="margin-top:16px">'+TIPO_T[n.tipo]+'</p><h1>'+esc(n.nombre)+'</h1>'+
+    '<p class="sub">'+plural(cuantas,'pregunta','preguntas')+(contexto?' · '+esc(contexto):'')+'</p>'+
+    (sinSrv?aviso('info','Para hacer cambios hace falta el servidor.'):'')+
+    '<section class="sec-block"><h2>Cambiar nombre</h2>'+
+      '<div class="field"><label class="sr" for="nNuevo">Nuevo nombre</label><input class="in" id="nNuevo" value="'+esc(n.nombre)+'" autocomplete="off"></div>'+
+      '<button class="btn sec" data-a="guardarNombre"'+(sinSrv?' disabled':'')+'>'+ic('edit')+'Guardar nombre</button></section>'+
+    (otros.length?'<section class="sec-block"><h2>Unir con otro</h2><p class="hint" style="margin:-8px 0 12px">Si es lo mismo escrito de otra forma. Sus preguntas pasarán al nombre que elijas.</p>'+
+      '<div class="field"><label class="sr" for="nUnir">Unir con</label><select class="in" id="nUnir">'+otros.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select></div>'+
+      '<button class="btn sec" data-a="unirFicha"'+(sinSrv?' disabled':'')+'>Unir</button></section>':'')+
+    '<div class="zona-peligro"><h2>Eliminar</h2><p class="hint" style="margin:-8px 0 12px">Dejarán de salir sus '+plural(cuantas,'pregunta','preguntas')+'. Podrás recuperarlo desde el historial.</p>'+
+      '<button class="btn sec peligro" data-a="eliminarFicha"'+(sinSrv?' disabled':'')+'>'+ic('trash')+'Eliminar «'+esc(n.nombre)+'»</button></div>';
+}
+async function cambiarNombre(){
+  const n=E.nom,nuevo=norm($('#nNuevo').value);
+  if(!nuevo){toast('Escribe un nombre.');return}
+  if(nuevo===n.nombre){toast('Es el mismo nombre.');return}
+  const g=grupoDe(n.tipo,n.ctx),existe=g&&Object.keys(g.items).find(x=>x!==n.nombre&&clave(x)===clave(nuevo));
+  if(existe&&!confirm('Ya existe «'+existe+'». ¿Unir «'+n.nombre+'» con él?'))return;
+  try{
+    await servidorPost({accion:'alias',tipo:n.tipo,de:n.ctx+clave(n.nombre),a:nuevo,original:n.nombre});
+    /* si ya existía escrito de otra forma (p. ej. sin tilde), se queda la forma nueva para los dos */
+    if(existe&&existe!==nuevo)await servidorPost({accion:'alias',tipo:n.tipo,de:n.ctx+clave(existe),a:nuevo,original:existe});
+    await Datos.cargar();ir('nombres');toast('Nombre cambiado a «'+nuevo+'».');
+  }catch(e){toast(/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido cambiar: '+e.message+'.')}
 }
 async function hacerUnion(tipo,ctx,de,a){
   if(clave(de)===clave(a))return;
   try{
     await servidorPost({accion:'alias',tipo,de:ctx+clave(de),a,original:de});
-    await Datos.cargar();cerrarModal();renderNombres();toast('Unido: ahora todo está en «'+a+'».');
+    await Datos.cargar();cerrarModal();ir('nombres');toast('Unido: ahora todo está en «'+a+'».');
   }catch(e){toast(/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido unir: '+e.message+'.')}
 }
 
@@ -1113,6 +1147,7 @@ function renderEditor(){
     ed.preguntas.map(qHTML).join('')+
     '<button class="btn sec" data-ed="addq">'+ic('plus')+'Añadir pregunta</button>'+
     '<button class="link" data-ed="descargar" style="margin-top:8px">'+ic('download')+'Descargar como XML</button>'+
+    (editando?'<div class="zona-peligro"><p class="hint">¿Ya no quieres estas preguntas en el quiz?</p><button class="btn sec peligro" data-a="retirarEd">'+ic('trash')+'Quitar estas preguntas del quiz</button></div>':'')+
     '<div class="bar-bottom"><button class="btn" id="edGo" data-ed="guardar"></button></div>'+
     datalist('dl-c',P.map(q=>q.curso).concat(ed.curso))+
     datalist('dl-a',P.map(q=>q.asignatura).concat(ed.asignatura))+
@@ -1222,10 +1257,10 @@ function abrirArchivo(el){
   E.ed=edDesde(a.todas&&a.todas.length?a.todas:a.preguntas,a.nombre,el.dataset.t==='s'?a.id:'');
   guardarBorrador();ir('editor');
 }
-async function retirar(el){
-  const a=Datos.subidas.find(s=>s.id===el.dataset.id);if(!a)return;
+async function retirar(id){
+  const a=Datos.subidas.find(s=>s.id===id);if(!a)return;
   if(!confirm('¿Quitar «'+a.nombre+'» del quiz? Sus '+plural(a.preguntas.length,'pregunta dejará','preguntas dejarán')+' de salir.'))return;
-  try{await servidorPost({accion:'retirar',id:a.id});await Datos.cargar();renderPreguntas();toast('Quitado del quiz.')}
+  try{await servidorPost({accion:'retirar',id:a.id});await Datos.cargar();E.ed=edNuevo();guardarBorrador();ir('preguntas');toast('Quitado del quiz.')}
   catch(e){toast('No se ha podido quitar: '+e.message+'.')}
 }
 const A={
@@ -1250,17 +1285,11 @@ const A={
   },
   usarNombre:el=>{const t=el.dataset.t;E.imp[t]=el.dataset.v;guardarImp();const inp=$('[data-imp="'+t+'"]');if(inp)inp.value=el.dataset.v;$('#prompt').value=promptTexto();sugerirNombre(t);if(t!=='tema')sugerirNombre('tema')},
   nombres:()=>ir('nombres'),
+  verNombre:el=>{E.nom={tipo:el.dataset.t,ctx:el.dataset.ctx,nombre:el.dataset.de};ir('nombre')},
+  guardarNombre:el=>conBoton(el,'Guardando…',cambiarNombre),
+  unirFicha:el=>{const n=E.nom,v=$('#nUnir').value;if(!v)return;if(confirm('¿Unir «'+n.nombre+'» con «'+v+'»?'))conBoton(el,'Uniendo…',()=>hacerUnion(n.tipo,n.ctx,n.nombre,v))},
+  eliminarFicha:()=>{const n=E.nom;eliminarNombre(n.tipo,n.ctx,n.nombre)},
   unirPar:el=>{if(confirm('¿Unir «'+el.dataset.de+'» con «'+el.dataset.dest+'»? Sus preguntas pasarán a «'+el.dataset.dest+'».'))hacerUnion(el.dataset.t,el.dataset.ctx,el.dataset.de,el.dataset.dest)},
-  unirCon:el=>{
-    const g=gruposNombres().find(x=>x.tipo===el.dataset.t&&x.ctx===el.dataset.ctx);if(!g)return;
-    const otros=unicos(Object.keys(g.items)).filter(n=>n!==el.dataset.de);
-    E.union={tipo:g.tipo,ctx:g.ctx,de:el.dataset.de};
-    abrirModal('<p class="eyebrow">Unir</p><h1 id="mTit">«'+esc(el.dataset.de)+'»</h1><p>Elige con qué nombre se junta. Sus preguntas pasarán a ese nombre.</p>'+
-      '<div class="field"><label class="lbl-f" for="unirSel">Unir con</label><select class="in" id="unirSel">'+otros.map(n=>'<option>'+esc(n)+'</option>').join('')+'</select></div>'+
-      '<div class="stack"><button class="btn" data-a="confirmarUnion">Unir</button><button class="btn sec" data-a="cerrar">Cancelar</button></div>');
-  },
-  eliminarNombre:el=>eliminarNombre(el.dataset.t,el.dataset.ctx,el.dataset.de),
-  confirmarUnion:el=>{const u=E.union,v=$('#unirSel').value;if(!u||!v)return;conBoton(el,'Uniendo…',()=>hacerUnion(u.tipo,u.ctx,u.de,v))},
   deshacerAlias:async el=>{
     try{await servidorPost({accion:'quitarAlias',id:el.dataset.id});await Datos.cargar();renderNombres();toast('Unión deshecha.')}
     catch(e){toast('No se ha podido deshacer: '+e.message+'.')}
@@ -1268,7 +1297,7 @@ const A={
   decNombre:el=>{const r=E.rev;if(!r)return;r.dec[el.dataset.k]=el.dataset.v==='1';pintarRevision();const b=$('[data-a=decNombre][data-k="'+CSS.escape(el.dataset.k)+'"][data-v="'+el.dataset.v+'"]');if(b)b.focus({preventScroll:true})},
   quitarExtra:()=>{Datos.extra=[];PANT[E.pant]&&PANT[E.pant]();toast('Prueba terminada.')},
   editarArch:el=>abrirArchivo(el),
-  retirar:el=>retirar(el),
+  retirarEd:()=>{if(E.ed&&E.ed.subidaId)retirar(E.ed.subidaId)},
   exportarTodo:()=>descargar(aXML(Datos.base),'todas-las-preguntas.xml','application/xml'),
   plantilla:()=>descargar(PLANTILLA,'plantilla-preguntas.xml','application/xml'),
   exportarRes:()=>descargar(JSON.stringify(Datos.resultados(),null,2),'resultados-repaso.json','application/json'),
