@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Repaso">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>Repaso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --surface:#fafafa; --line:#e0e0e0; --line-strong:#757575; --muted:#595959; --ink:#000000;
+  --act:#000000; --act-ink:#ffffff;
+  --err:#b71c1c; --err-ink:#7a0000; --warn:#e65100; --info:#0d47a1;
+  --focus:0 0 0 2px #ffffff,0 0 0 4px #000000;
+  --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#121212; --surface:#1e1e1e; --line:#333333; --line-strong:#8a8a8a; --muted:#bdbdbd; --ink:#efefef;
+    --act:#ffffff; --act-ink:#000000;
+    --err:#ef9a9a; --err-ink:#ffb4ab; --warn:#ffb74d; --info:#90caf9;
+    --focus:0 0 0 2px #000000,0 0 0 4px #ffffff;
+    --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23efefef' stroke-width='1'/%3E%3C/svg%3E");
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--font);min-height:100vh;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0;border-radius:0}
+a{color:inherit}
+:focus{outline:none}
+:focus-visible{box-shadow:var(--focus)}
+.ic{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;vertical-align:middle}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Cabecera */
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.top-in{max-width:720px;margin:0 auto;height:56px;display:flex;align-items:center;padding:0 6px 0 16px}
+.marca{font-size:15px;font-weight:500;letter-spacing:.32em;text-transform:uppercase;padding:12px 0}
+.nav{margin-left:auto;display:flex}
+.nav button{display:flex;align-items:center;gap:8px;height:44px;padding:0 10px;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase}
+.nav button[aria-current="page"] .lbl{text-decoration:underline;text-underline-offset:6px}
+@media (max-width:440px){.nav .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nav button[aria-current="page"]{box-shadow:inset 0 -1px 0 var(--ink)}}
+
+main{max-width:720px;margin:0 auto;padding:32px 16px 72px}
+.eyebrow{font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+h1{font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-.01em;margin:0 0 8px}
+h2{font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;margin:0 0 16px}
+p{margin:0 0 12px}
+.sub{color:var(--muted);margin:0 0 32px}
+.box{border:1px solid var(--line);padding:20px;margin-bottom:24px}
+.sec-block{margin-bottom:40px}
+.head-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.head-row h2{margin:0}
+
+/* Formularios */
+.field{margin-bottom:20px}
+.field:last-child{margin-bottom:0}
+.lbl-f{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.in{display:block;width:100%;height:48px;padding:0 14px;border:1px solid var(--line-strong);border-radius:0;background:var(--bg);-webkit-appearance:none;appearance:none;font-size:16px}
+textarea.in{height:auto;min-height:88px;padding:12px 14px;line-height:1.45;resize:vertical}
+textarea.in.short{min-height:64px}
+select.in{padding-right:44px;background:var(--bg) var(--chev) no-repeat right 15px center;text-overflow:ellipsis}
+.in:focus{border-color:var(--ink);box-shadow:var(--focus)}
+.in::placeholder{color:var(--line-strong)}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+.chips{display:flex;border:1px solid var(--line-strong)}
+.chip{flex:1;min-height:48px;padding:0 8px;border-left:1px solid var(--line-strong);font-size:14px;font-weight:500}
+.chip:first-child{border-left:0}
+.chip[aria-pressed="true"]{background:var(--act);color:var(--act-ink)}
+
+/* Botones */
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:52px;padding:0 20px;background:var(--act);color:var(--act-ink);border:1px solid var(--act);font-size:13px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;text-align:center}
+.btn.sec{background:transparent;color:var(--ink);border-color:var(--ink)}
+@media (hover:hover){.btn.sec:hover{background:var(--surface)}}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.stack{display:grid;gap:12px}
+.link{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;text-decoration:underline;text-underline-offset:5px}
+.icbtn{width:44px;height:44px;display:inline-grid;place-items:center;flex:none}
+.lbtn{display:flex;align-items:center;gap:14px;width:100%;padding:14px 0;border-top:1px solid var(--line);text-align:left}
+.lbtn:last-child{border-bottom:1px solid var(--line)}
+.lbtn small{display:block;color:var(--muted);font-size:13px}
+.lbtn.danger{color:var(--err-ink)}
+.lbtn.danger .ic{color:var(--err)}
+
+.count{margin:0 0 20px;font-size:14px;color:var(--muted)}
+.count b{color:var(--ink);font-weight:500}
+.aviso{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--info);padding:14px 16px;margin-bottom:24px;font-size:14px}
+.aviso>.ic{color:var(--info)}
+.aviso.err{border-color:var(--err)}
+.aviso.err>.ic{color:var(--err)}
+.aviso .link{min-height:0;padding:0}
+.errs{margin:6px 0 0;padding-left:18px;font-size:14px;color:var(--err-ink)}
+.cargando{color:var(--muted);padding:56px 0;text-align:center}
+
+/* Pregunta */
+.qhead{display:flex;align-items:center;gap:12px;margin:-20px 0 32px}
+.linea{flex:1;height:2px;background:var(--line);position:relative}
+.linea>i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);transition:width .3s ease}
+.linea.w>i{background:var(--warn)}
+.qn{font-size:13px;letter-spacing:.08em;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.enun{font-size:22px;line-height:1.35;font-weight:500;margin:0 0 28px}
+.opts{display:grid;gap:8px}
+.opt{display:flex;align-items:center;gap:16px;width:100%;min-height:60px;padding:12px 16px;border:1px solid var(--line-strong);background:var(--bg);text-align:left;font-size:16px;transition:background .15s,border-color .15s}
+.opt .l{width:28px;height:28px;border:1px solid currentColor;display:grid;place-items:center;font-size:13px;font-weight:500;flex:none}
+@media (hover:hover){.opt:not(:disabled):hover{border-color:var(--ink);background:var(--surface)}}
+.opt:disabled{cursor:default}
+.opt.ok{background:var(--act);color:var(--act-ink);border-color:var(--act)}
+.opt.ko{border-color:var(--err);color:var(--err-ink)}
+.opt.ko .ic{color:var(--err)}
+.opt.ok .l,.opt.ko .l{border:0}
+.opt.dim{color:var(--muted);border-color:var(--line)}
+.fb{border:1px solid var(--ink);padding:16px;margin-top:24px}
+.fb.ko{border-color:var(--err)}
+.fb-t{display:flex;align-items:center;gap:10px;font-weight:700}
+.fb.ko .fb-t{color:var(--err-ink)}
+.fb.ko .fb-t .ic{color:var(--err)}
+.fb-r{margin:8px 0 0}
+.fb-x{margin:8px 0 0;color:var(--muted)}
+
+/* Resultado */
+.big{font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em;margin:8px 0 20px;font-variant-numeric:tabular-nums}
+.big small{font-size:18px;letter-spacing:0;color:var(--muted);margin-left:12px}
+.lista>div{padding:16px 0;border-top:1px solid var(--line)}
+.lista>div:last-child{border-bottom:1px solid var(--line)}
+.lista .resp{display:flex;align-items:center;gap:8px;margin-top:4px;color:var(--muted)}
+
+/* Progreso */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);margin-bottom:40px}
+.kpi{padding:16px 12px;border-left:1px solid var(--line)}
+.kpi:first-child{border-left:0}
+.kpi b{display:block;font-size:28px;line-height:1.1;font-weight:400;font-variant-numeric:tabular-nums}
+.kpi small{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stat{margin-bottom:22px}
+.stat .r{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:15px}
+.stat .r span:last-child{font-variant-numeric:tabular-nums}
+.stat small{display:block;margin-top:6px;font-size:13px;color:var(--muted)}
+.ses{display:flex;justify-content:space-between;gap:12px;padding:14px 0;border-top:1px solid var(--line);font-size:15px}
+.ses:last-child{border-bottom:1px solid var(--line)}
+.ses small{display:block;color:var(--muted);font-size:13px}
+
+/* Preguntas */
+.arch{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.arch:last-child{border-bottom:1px solid var(--line)}
+.arch>.ic{margin-top:2px}
+.arch .n{flex:1;min-width:0}
+.arch .n b{display:block;font-weight:500;overflow-wrap:anywhere}
+.arch .n small{color:var(--muted);font-size:13px}
+.arch .e{color:var(--err-ink)}
+.arch .icbtn{margin:-10px -10px 0 0}
+.paso{display:grid;grid-template-columns:32px 1fr;gap:16px;padding:20px 0;border-top:1px solid var(--line)}
+.paso:last-child{border-bottom:1px solid var(--line)}
+.paso .num{width:32px;height:32px;border:1px solid var(--ink);display:grid;place-items:center;font-size:13px;font-weight:500}
+.paso b{font-weight:500}
+.paso p{margin:4px 0 14px;color:var(--muted);font-size:15px}
+.paso .btn{width:auto;display:inline-flex}
+.nota{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+code{font-size:.92em}
+
+/* Editor */
+.tool{display:flex;gap:8px;margin-bottom:24px}
+.tool .btn{min-height:44px;font-size:12px}
+.qbox{border:1px solid var(--line);padding:20px;margin-bottom:16px}
+.qbox.err{border-color:var(--err)}
+.qbox-h{display:flex;align-items:center;justify-content:space-between;margin:-10px -10px 12px 0}
+.qbox-h h2{margin:0}
+.oprow{display:flex;gap:8px;margin-bottom:8px}
+.oprow .in{flex:1;min-width:0}
+.mark{width:48px;height:48px;border:1px solid var(--line-strong);display:grid;place-items:center;flex:none}
+.mark .ic{opacity:.2}
+.mark[aria-pressed="true"]{background:var(--act);color:var(--act-ink);border-color:var(--act)}
+.mark[aria-pressed="true"] .ic{opacity:1}
+.del{width:44px;height:48px;display:grid;place-items:center;flex:none;color:var(--muted)}
+.bar-bottom{position:sticky;bottom:0;z-index:4;background:var(--bg);border-top:1px solid var(--line);margin:24px -16px 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+
+/* Modal y aviso flotante */
+#modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center}
+#modal[hidden]{display:none}
+.sheet{background:var(--bg);border:1px solid var(--line);width:100%;max-width:520px;max-height:88vh;overflow:auto;padding:28px 20px calc(24px + env(safe-area-inset-bottom))}
+.sheet p{color:var(--muted)}
+@media (min-width:600px){#modal{align-items:center;padding:16px}}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,16px);opacity:0;pointer-events:none;background:var(--act);color:var(--act-ink);padding:14px 20px;font-size:14px;max-width:calc(100% - 32px);width:max-content;text-align:center;transition:opacity .2s,transform .2s;z-index:30}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+/* Importador */
+textarea.in.prompt{min-height:300px;font-size:14px;line-height:1.55;background:var(--surface);color:var(--ink)}
+textarea.in.pegar{min-height:180px;font-size:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.paso .field{margin-bottom:16px}
+.paso .chips{margin-bottom:4px}
+.acts{display:flex;align-items:center;margin:-10px -10px -10px 0}
+.res-t{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 20.5h17M7 17V11M12 17V5M17 17V8"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 3.5h10l4 4v13H5z"/><path d="M15 3.5v4h4M8.5 12h7M8.5 15.5h7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M5.5 3.5h9l4 4v13h-13z"/><path d="M14.5 3.5v4h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 12H4M10 6l-6 6 6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15.5v-12M7 8.5l5-5 5 5M4.5 15v5.5h15V15"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v12M7 10.5l5 5 5-5M4.5 15v5.5h15V15"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6.5h16M9.5 6.5v-3h5v3M6.5 6.5l1 14h9l1-14M10 10.5v6.5M14 10.5v6.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 3.5v4.5H15"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 10.5V17M12 7v1.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9 16.5H3z"/><path d="M12 9.5v5M12 16.5V18"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5l-9 9M17 13.5v6H4.5V7h6"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h4l11-11-4-4-11 11z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8.5 8.5h11v11h-11z"/><path d="M15.5 8.5v-4h-11v11h4"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><path d="M8.5 4.5h-3v16h13v-16h-3"/><path d="M8.5 3.5h7v3h-7zM9 11.5h6M9 15h6"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3M19.5 3.5v4.5H15M19.5 12a7.5 7.5 0 0 1-12.8 5.3M4.5 20.5V16H9"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="top-in">
+    <button class="marca" data-a="inicio" aria-label="Repaso, inicio">Repaso</button>
+    <nav class="nav" aria-label="Secciones">
+      <button data-a="progreso"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg><span class="lbl">Progreso</span></button>
+      <button data-a="preguntas"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><span class="lbl">Preguntas</span></button>
+    </nav>
+  </div>
+</header>
+<main id="app"><p class="cargando">Cargando preguntas…</p></main>
+<div id="modal" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileXml" accept=".xml,text/xml,application/xml" hidden>
+<input type="file" id="fileEd" accept=".xml,text/xml,application/xml" hidden>
+
+<script>
+(function(){
+'use strict';
+
+/* ======================= CONFIGURACIÓN =======================
+   servidor: dirección de la aplicación web de Google Apps Script (termina en /exec).
+             Es donde se guardan las preguntas que se suben y los resultados de todos los dispositivos.
+             Vacío = solo se usan los XML de la carpeta del repositorio y los resultados quedan en cada dispositivo.
+   repo:     'usuario/repositorio' de GitHub. Vacío = se detecta solo al publicarlo en GitHub Pages.
+   rama / carpeta: dónde están los XML de base dentro del repositorio (opcional).
+*/
+const CONFIG={servidor:'',repo:'',rama:'main',carpeta:'preguntas'};
+
+const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
+const TODOS='__todos__';
+const MAX_XML=45000;
+const ls={
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}},
+  del(k){try{localStorage.removeItem(k)}catch(e){}}
+};
+
+/* ---------- utilidades ---------- */
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>String(s==null?'':s).trim().replace(/\s+/g,' ');
+const hashN=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return h>>>0};
+const unicos=a=>Array.from(new Set(a.filter(Boolean))).sort((x,y)=>x.localeCompare(y,'es',{numeric:true}));
+const barajar=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const fecha=iso=>{try{return new Date(iso).toLocaleDateString('es-ES',{day:'numeric',month:'long'})}catch(e){return ''}};
+const fechaHora=iso=>{try{return new Date(iso).toLocaleString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){return ''}};
+const slug=s=>norm(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[ºª]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+const nuevoId=()=>'q'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const ic=n=>'<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-'+n+'"/></svg>';
+const plural=(n,s,p)=>n+' '+(n===1?s:p);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),3400)}
+function descargar(contenido,nombre,tipo){
+  const url=URL.createObjectURL(new Blob([contenido],{type:tipo+';charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+function aviso(tipo,html){return '<div class="aviso '+tipo+'" role="status">'+ic(tipo==='err'?'alert':'info')+'<div>'+html+'</div></div>'}
+function irA(sel){const el=$(sel);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
+
+/* ---------- servidor (Google Apps Script) ---------- */
+async function servidorGet(){
+  if(!CONFIG.servidor)return null;
+  try{
+    const r=await fetch(CONFIG.servidor+(CONFIG.servidor.indexOf('?')>=0?'&':'?')+'t='+Date.now());
+    if(!r.ok)return null;const j=await r.json();return j&&j.ok?j:null;
+  }catch(e){return null}
+}
+async function servidorPost(datos){
+  if(!CONFIG.servidor)throw new Error('el servidor no está configurado');
+  let j;
+  try{
+    const r=await fetch(CONFIG.servidor,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(datos)});
+    j=await r.json();
+  }catch(e){throw new Error('no hay conexión con el servidor')}
+  if(!j||!j.ok)throw new Error((j&&j.error)||'el servidor no ha respondido bien');
+  return j;
+}
+
+/* ---------- GitHub (XML de base en la carpeta del repositorio, opcional) ---------- */
+function repo(){
+  if(CONFIG.repo)return CONFIG.repo;
+  const m=location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i);if(!m)return '';
+  const seg=location.pathname.split('/').filter(Boolean)[0];
+  return (seg&&!/\.html?$/i.test(seg))?m[1]+'/'+seg:m[1]+'/'+m[1]+'.github.io';
+}
+async function listarArchivos(){
+  const r=repo();
+  if(r){
+    try{
+      const res=await fetch('https://api.github.com/repos/'+r+'/contents/'+CONFIG.carpeta+'?ref='+CONFIG.rama,{cache:'no-cache'});
+      if(res.ok){
+        const j=await res.json();
+        if(Array.isArray(j))return j.filter(f=>f.type==='file'&&/\.xml$/i.test(f.name)&&!/^plantilla/i.test(f.name))
+          .map(f=>({nombre:f.name,sha:f.sha,url:f.download_url+'?v='+f.sha.slice(0,10)}));
+      }
+      if(res.status===404)return [];
+    }catch(e){}
+  }
+  try{
+    const res=await fetch(CONFIG.carpeta+'/indice.json',{cache:'no-cache'});
+    if(res.ok){const l=await res.json();return l.filter(n=>/\.xml$/i.test(n)).map(n=>({nombre:n,sha:'',url:CONFIG.carpeta+'/'+encodeURIComponent(n)}))}
+  }catch(e){}
+  return null;
+}
+
+/* ---------- lectura y validación de XML ---------- */
+const SI=/^(si|sí|true|1|yes|correcta|x)$/i;
+const hijos=(n,nombres)=>Array.from(n.children).filter(c=>nombres.indexOf(c.localName.toLowerCase())>=0);
+const esVF=q=>q.opciones.length===2&&/^verdadero$/i.test(q.opciones[0])&&/^falso$/i.test(q.opciones[1]);
+/* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos */
+function arreglarXML(t){
+  t=String(t||'').replace(/^﻿/,'').replace(/```[a-z]*\s*/gi,'');
+  const i=t.search(/<\?xml|<banco[\s>]/i),j=t.toLowerCase().lastIndexOf('</banco>');
+  if(i>=0&&j>i)t=t.slice(i,j+8);
+  return t.trim().replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/gi,'&amp;');
+}
+function heredar(n,campo){
+  let el=n;
+  while(el&&el.nodeType===1){
+    const v=el.getAttribute(campo);if(v&&v.trim())return norm(v);
+    if(el!==n&&el.localName.toLowerCase()===campo){const nm=el.getAttribute('nombre');if(nm&&nm.trim())return norm(nm)}
+    el=el.parentNode;
+  }
+  return '';
+}
+function leerPregunta(n){
+  const curso=heredar(n,'curso'),asignatura=heredar(n,'asignatura'),tema=heredar(n,'tema');
+  const en=hijos(n,['enunciado'])[0];const enunciado=norm(en?en.textContent:n.getAttribute('texto'));
+  let ops=hijos(n,['opcion','opción']).map(o=>({t:norm(o.textContent),c:SI.test((o.getAttribute('correcta')||'').trim())})).filter(o=>o.t);
+  const resp=(n.getAttribute('respuesta')||'').trim().toLowerCase();
+  if(!ops.length&&resp){const v=/^(v|verdadero|true|si|sí)/.test(resp);ops=[{t:'Verdadero',c:v},{t:'Falso',c:!v}]}
+  const ex=hijos(n,['explicacion','explicación'])[0];
+  const q={id:norm(n.getAttribute('id')),curso,asignatura,tema,enunciado,opciones:ops.map(o=>o.t),correcta:ops.findIndex(o=>o.c),nCorrectas:ops.filter(o=>o.c).length,explicacion:ex?norm(ex.textContent):''};
+  if(!q.id)q.id=(curso&&asignatura&&tema&&enunciado)?'q'+hashN([curso,asignatura,tema,enunciado].join('|').toLowerCase()).toString(36):nuevoId();
+  return q;
+}
+function errorDe(q){
+  const falta=['curso','asignatura','tema','enunciado'].filter(k=>!norm(q[k]));
+  if(falta.length)return 'falta '+falta.join(', ').replace('enunciado','la pregunta');
+  if(q.opciones.filter(o=>norm(o)).length<2)return 'necesita al menos 2 respuestas';
+  if(q.nCorrectas>1)return 'tiene más de una respuesta marcada como correcta';
+  if(q.correcta<0||!norm(q.opciones[q.correcta]))return 'no tiene marcada la respuesta correcta';
+  return '';
+}
+function limpiar(q){
+  const keep=[];q.opciones.forEach((o,i)=>{if(norm(o))keep.push(i)});
+  return {id:q.id,curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
+    opciones:keep.map(i=>norm(q.opciones[i])),correcta:keep.indexOf(q.correcta),explicacion:norm(q.explicacion)};
+}
+const etiqueta=(q,i)=>q.enunciado?'«'+q.enunciado.slice(0,60)+(q.enunciado.length>60?'…':'')+'»':'Pregunta '+(i+1);
+function parsearXML(txt,archivo){
+  const doc=new DOMParser().parseFromString(txt,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length){
+    const e=new Error('El texto no es un XML válido: puede que esté incompleto o que falte cerrar alguna etiqueta.');
+    e.xml=true;throw e;
+  }
+  const todas=Array.from(doc.getElementsByTagName('pregunta')).map(leerPregunta);
+  const ok=[],errores=[];
+  if(!todas.length)errores.push('No hay ninguna <pregunta> en el texto.');
+  todas.forEach((q,i)=>{const e=errorDe(q);if(e)errores.push(etiqueta(q,i)+': '+e+'.');else ok.push(Object.assign(limpiar(q),{archivo}))});
+  return {ok,errores,todas};
+}
+function aXML(P){
+  const x=s=>esc(s);
+  const out=['<?xml version="1.0" encoding="UTF-8"?>','<banco>'],arbol={};
+  P.forEach(q=>{const c=arbol[q.curso]=arbol[q.curso]||{};const a=c[q.asignatura]=c[q.asignatura]||{};(a[q.tema]=a[q.tema]||[]).push(q)});
+  Object.keys(arbol).forEach(c=>{
+    out.push('  <curso nombre="'+x(c)+'">');
+    Object.keys(arbol[c]).forEach(a=>{
+      out.push('    <asignatura nombre="'+x(a)+'">');
+      Object.keys(arbol[c][a]).forEach(t=>{
+        out.push('      <tema nombre="'+x(t)+'">');
+        arbol[c][a][t].forEach(q=>{
+          if(esVF(q)){
+            out.push('        <pregunta id="'+x(q.id)+'" respuesta="'+(q.correcta===0?'verdadero':'falso')+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+          }else{
+            out.push('        <pregunta id="'+x(q.id)+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+            q.opciones.forEach((o,i)=>out.push('          <opcion'+(i===q.correcta?' correcta="si"':'')+'>'+x(o)+'</opcion>'));
+          }
+          if(q.explicacion)out.push('          <explicacion>'+x(q.explicacion)+'</explicacion>');
+          out.push('        </pregunta>');
+        });
+        out.push('      </tema>');
+      });
+      out.push('    </asignatura>');
+    });
+    out.push('  </curso>');
+  });
+  out.push('</banco>');
+  return out.join('\n')+'\n';
+}
+
+/* ---------- datos ---------- */
+const Datos={
+  base:[],extra:[],archivos:[],subidas:[],resSrv:[],fecha:null,estado:'cargando',servidorOk:false,
+  async cargar(forzar){
+    this.estado='cargando';
+    const cache=ls.get(LS.cache,null)||{};
+    const [lista,srv]=await Promise.all([listarArchivos(),servidorGet()]);
+    let archivos=cache.archivos||[];
+    if(lista){
+      const prev={};archivos.forEach(a=>{prev[a.nombre]=a});
+      archivos=await Promise.all(lista.map(async a=>{
+        const p=prev[a.nombre];
+        if(!forzar&&a.sha&&p&&p.sha===a.sha)return p;
+        try{
+          const r=await fetch(a.url,{cache:'no-cache'});
+          if(!r.ok)throw new Error('No se ha podido descargar ('+r.status+').');
+          const res=parsearXML(await r.text(),a.nombre);
+          return {nombre:a.nombre,sha:a.sha,preguntas:res.ok,errores:res.errores,todas:res.todas};
+        }catch(e){return (e.xml||!p)?{nombre:a.nombre,sha:a.sha,preguntas:[],errores:[e.message],todas:[]}:p}
+      }));
+    }
+    const enLinea=!!(lista||srv);
+    const c={fecha:enLinea?new Date().toISOString():cache.fecha,archivos,
+      subidas:srv?srv.subidas||[]:cache.subidas||[],resSrv:srv?srv.resultados||[]:cache.resSrv||[]};
+    if(enLinea)ls.set(LS.cache,c);
+    this.usar(c);
+    this.servidorOk=!!srv;
+    this.estado=(!enLinea&&cache.fecha)?'offline':(this.base.length?'ok':'vacio');
+    if(srv)this.sincronizar();
+  },
+  usar(c){
+    this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];
+    this.subidas=(c.subidas||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(s=>{
+      let r;try{r=parsearXML(arreglarXML(s.xml),s.nombre)}catch(e){r={ok:[],errores:[e.message],todas:[]}}
+      return {id:s.id,nombre:s.nombre||'Sin nombre',fecha:s.fecha,preguntas:r.ok,errores:r.errores,todas:r.todas};
+    });
+    const m=new Map();
+    this.archivos.concat(this.subidas).forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;m.set(q.id,q)}));
+    this.base=Array.from(m.values());
+  },
+  todas(){
+    if(!this.extra.length)return this.base;
+    const m=new Map();this.base.forEach(q=>m.set(q.id,q));this.extra.forEach(q=>m.set(q.id,q));
+    return Array.from(m.values());
+  },
+  /* resultados de este dispositivo + los del servidor (todos los dispositivos) */
+  resultados(){
+    const m=new Map();
+    this.resSrv.concat(ls.get(LS.resultados,[])).forEach(r=>{if(r&&r.fecha)m.set(r.id||r.fecha,r)});
+    return Array.from(m.values()).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+  },
+  guardarResultado(r){
+    r.id=nuevoId();r.enviado=false;
+    const a=ls.get(LS.resultados,[]);a.push(r);ls.set(LS.resultados,a);
+    if(CONFIG.servidor)this.enviar(r);
+  },
+  enviar(r){
+    const datos=Object.assign({},r);delete datos.enviado;
+    servidorPost({accion:'resultado',datos}).then(()=>{
+      const a=ls.get(LS.resultados,[]);a.forEach(x=>{if(x.id===r.id)x.enviado=true});ls.set(LS.resultados,a);
+      if(!this.resSrv.some(x=>x.id===r.id))this.resSrv.push(datos);
+    }).catch(()=>{});
+  },
+  sincronizar(){ls.get(LS.resultados,[]).filter(r=>r.id&&r.enviado===false).forEach(r=>this.enviar(r))}
+};
+async function subirXML(lista,nombre,reemplaza){
+  const xml=aXML(lista);
+  if(xml.length>MAX_XML)throw new Error('son demasiadas preguntas de una vez; súbelas en dos partes');
+  const j=await servidorPost({accion:'subir',nombre,xml,reemplaza:reemplaza||''});
+  await Datos.cargar();
+  return j;
+}
+function conBoton(btn,texto,fn){
+  const antes=btn.innerHTML;btn.disabled=true;btn.textContent=texto;
+  return fn().finally(()=>{if(document.body.contains(btn)){btn.disabled=false;btn.innerHTML=antes}});
+}
+
+/* ---------- estado y navegación ---------- */
+const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
+  imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:15,xml:''}),rev:null};
+const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar()};
+function ir(p){
+  E.pant=p;E.sesion=null;PANT[p]();
+  document.querySelectorAll('.nav [data-a]').forEach(b=>{
+    if(b.dataset.a===p||((p==='editor'||p==='importar')&&b.dataset.a==='preguntas'))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+  });
+  window.scrollTo(0,0);
+}
+
+const cumple=(q,f)=>(f.curso===TODOS||q.curso===f.curso)&&(f.asignatura===TODOS||q.asignatura===f.asignatura)&&(f.tema===TODOS||q.tema===f.tema);
+function listas(P,f){
+  return {
+    cursos:unicos(P.map(q=>q.curso)),
+    asigs:unicos(P.filter(q=>f.curso===TODOS||q.curso===f.curso).map(q=>q.asignatura)),
+    temas:unicos(P.filter(q=>(f.curso===TODOS||q.curso===f.curso)&&(f.asignatura===TODOS||q.asignatura===f.asignatura)).map(q=>q.tema))
+  };
+}
+function validarFiltro(P){
+  const f=E.filtro;
+  if(f.curso!==TODOS&&listas(P,f).cursos.indexOf(f.curso)<0)f.curso=TODOS;
+  if(f.asignatura!==TODOS&&listas(P,f).asigs.indexOf(f.asignatura)<0)f.asignatura=TODOS;
+  if(f.tema!==TODOS&&listas(P,f).temas.indexOf(f.tema)<0)f.tema=TODOS;
+}
+const avisoConexion=()=>Datos.estado==='offline'?aviso('info','Sin conexión. Usando las preguntas guardadas el '+fecha(Datos.fecha)+'.'):'';
+const datalist=(id,arr)=>'<datalist id="'+id+'">'+unicos(arr).map(v=>'<option value="'+esc(v)+'">').join('')+'</datalist>';
+
+/* ================= INICIO ================= */
+function renderInicio(){
+  if(Datos.estado==='cargando'){app.innerHTML='<p class="cargando">Cargando preguntas…</p>';return}
+  const P=Datos.todas();
+  if(!P.length){
+    app.innerHTML=avisoConexion()+'<p class="eyebrow">Repaso</p><h1>Todavía no hay preguntas</h1><p class="sub">Añade las primeras preguntas con ayuda de una IA. Solo hay que copiar, pegar y subir.</p><button class="btn" data-a="importar">'+ic('plus')+'Añadir preguntas</button>';
+    return;
+  }
+  validarFiltro(P);
+  const f=E.filtro,L=listas(P,f),disp=P.filter(q=>cumple(q,f)).length;
+  const sel=(id,label,todos,lista,val)=>'<div class="field"><label class="lbl-f" for="'+id+'">'+label+'</label><select class="in" id="'+id+'"><option value="'+TODOS+'">'+todos+'</option>'+
+    lista.map(v=>'<option value="'+esc(v)+'"'+(v===val?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select></div>';
+  app.innerHTML=avisoConexion()+
+    (Datos.extra.length?aviso('info','Estás probando '+plural(Datos.extra.length,'pregunta nueva','preguntas nuevas')+' que aún no están subidas. <button class="link" data-a="quitarExtra">Dejar de probar</button>'):'')+
+    '<p class="eyebrow">Repaso</p><h1>¿Qué repasamos hoy?</h1><p class="sub">Elige un tema o déjalo todo en «Todos» para mezclar.</p>'+
+    '<div class="box">'+
+      sel('fCurso','Curso','Todos los cursos',L.cursos,f.curso)+
+      sel('fAsig','Asignatura','Todas las asignaturas',L.asigs,f.asignatura)+
+      sel('fTema','Tema','Todos los temas',L.temas,f.tema)+
+      '<div class="field"><span class="lbl-f" id="lblNum">Número de preguntas</span><div class="chips" role="group" aria-labelledby="lblNum">'+
+        [[5,'5'],[10,'10'],[20,'20'],[0,'Todas']].map(n=>'<button class="chip" data-n="'+n[0]+'" aria-pressed="'+(E.num===n[0])+'">'+n[1]+'</button>').join('')+
+      '</div></div>'+
+    '</div>'+
+    '<p class="count"><b>'+disp+'</b> '+(disp===1?'pregunta disponible':'preguntas disponibles')+'</p>'+
+    '<button class="btn" id="go"'+(disp?'':' disabled')+'>Empezar '+ic('arrow')+'</button>';
+  [['curso','#fCurso'],['asignatura','#fAsig'],['tema','#fTema']].forEach(([campo,id])=>{
+    $(id).onchange=e=>{E.filtro[campo]=e.target.value;ls.set(LS.filtro,E.filtro);renderInicio();$(id).focus()};
+  });
+  app.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{E.num=+b.dataset.n;ls.set(LS.num,E.num);renderInicio();app.querySelector('.chip[data-n="'+E.num+'"]').focus()});
+  $('#go').onclick=()=>empezar(ronda(f));
+}
+function ronda(f){let p=barajar(Datos.todas().filter(q=>cumple(q,f)));if(E.num)p=p.slice(0,E.num);return p}
+
+/* ================= PREGUNTA ================= */
+function empezar(lista){
+  if(!lista.length)return;
+  E.pant='pregunta';
+  E.sesion={i:0,resp:[],filtro:JSON.parse(JSON.stringify(E.filtro)),
+    preguntas:lista.map(q=>{const idx=q.opciones.map((_,i)=>i);return {q,orden:esVF(q)?idx:barajar(idx)}})};
+  renderPregunta();
+}
+function renderPregunta(){
+  const s=E.sesion,{q,orden}=s.preguntas[s.i],n=s.preguntas.length;
+  app.innerHTML=
+    '<div class="qhead"><button class="icbtn" data-a="salir" aria-label="Salir de la ronda">'+ic('x')+'</button>'+
+    '<div class="linea" aria-hidden="true"><i style="width:'+(s.i/n*100)+'%"></i></div><span class="qn" aria-label="Pregunta '+(s.i+1)+' de '+n+'">'+(s.i+1)+'/'+n+'</span></div>'+
+    '<p class="eyebrow">'+esc(q.asignatura)+' · '+esc(q.tema)+'</p>'+
+    '<p class="enun" id="enun">'+esc(q.enunciado)+'</p>'+
+    '<div class="opts" role="group" aria-labelledby="enun">'+orden.map((oi,k)=>'<button class="opt" data-o="'+oi+'"><span class="l">'+'ABCDEF'.charAt(k)+'</span><span>'+esc(q.opciones[oi])+'</span></button>').join('')+'</div>'+
+    '<div id="fb" aria-live="polite"></div>';
+  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>responder(+b.dataset.o));
+  window.scrollTo(0,0);
+}
+const BIEN=['¡Correcto!','¡Muy bien!','¡Eso es!','¡Perfecto!','¡Genial!'];
+function responder(oi){
+  const s=E.sesion,q=s.preguntas[s.i].q;if(s.resp[s.i])return;
+  const ok=oi===q.correcta;s.resp[s.i]={elegida:oi,ok};
+  app.querySelectorAll('.opt').forEach(b=>{
+    const o=+b.dataset.o;b.disabled=true;
+    if(o===q.correcta){b.classList.add('ok');b.querySelector('.l').innerHTML=ic('check')}
+    else if(o===oi){b.classList.add('ko');b.querySelector('.l').innerHTML=ic('x')}
+    else b.classList.add('dim');
+  });
+  const ultima=s.i===s.preguntas.length-1;
+  app.querySelector('.linea>i').style.width=((s.i+1)/s.preguntas.length*100)+'%';
+  $('#fb').innerHTML='<div class="fb'+(ok?'':' ko')+'"><div class="fb-t">'+ic(ok?'check':'x')+(ok?pick(BIEN):'No es correcta')+'</div>'+
+    (ok?'':'<p class="fb-r">La respuesta correcta es <b>'+esc(q.opciones[q.correcta])+'</b>.</p>')+
+    (q.explicacion?'<p class="fb-x">'+esc(q.explicacion)+'</p>':'')+'</div>'+
+    '<button class="btn" id="sig" style="margin-top:16px">'+(ultima?'Ver resultado':'Siguiente')+' '+ic('arrow')+'</button>';
+  const sig=$('#sig');
+  sig.onclick=()=>{if(ultima)terminar();else{s.i++;renderPregunta()}};
+  try{sig.focus({preventScroll:true})}catch(e){}
+  sig.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+/* ================= RESULTADO ================= */
+function terminar(){
+  const s=E.sesion,f=s.filtro,total=s.preguntas.length,aciertos=s.resp.filter(r=>r&&r.ok).length;
+  const reg={fecha:new Date().toISOString(),
+    curso:f.curso===TODOS?null:f.curso,asignatura:f.asignatura===TODOS?null:f.asignatura,tema:f.tema===TODOS?null:f.tema,
+    total,aciertos,
+    detalle:s.preguntas.map(({q},i)=>({id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,ok:!!(s.resp[i]&&s.resp[i].ok)}))};
+  Datos.guardarResultado(reg);
+  E.pant='resultado';
+  renderResultado(reg);
+}
+function renderResultado(reg){
+  const s=E.sesion,p=pct(reg.aciertos,reg.total);
+  const msg=p>=90?['Lo tienes dominado','Sigue así.']:p>=70?['Muy bien','Ya casi lo tienes.']:p>=50?['Buen trabajo','Vas por buen camino.']:['Sigue practicando','Repasa los fallos y vuelve a intentarlo.'];
+  const fallos=s.preguntas.filter((_,i)=>!(s.resp[i]&&s.resp[i].ok)).map(it=>it.q);
+  app.innerHTML=
+    '<p class="eyebrow">Resultado</p>'+
+    '<p class="big">'+reg.aciertos+'/'+reg.total+'<small>'+p+'%</small></p>'+
+    '<div class="linea" aria-hidden="true" style="margin-bottom:24px"><i style="width:'+p+'%"></i></div>'+
+    '<h1>'+msg[0]+'</h1><p class="sub">'+msg[1]+'</p>'+
+    (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div></section>':'')+
+    '<div class="stack">'+
+      (fallos.length?'<button class="btn" id="rep">'+ic('repeat')+' Repetir los fallos ('+fallos.length+')</button>':'')+
+      '<button class="btn'+(fallos.length?' sec':'')+'" id="otra">Otra ronda</button>'+
+      '<button class="btn sec" data-a="inicio">Cambiar de tema</button>'+
+    '</div>';
+  if(fallos.length)$('#rep').onclick=()=>empezar(barajar(fallos));
+  $('#otra').onclick=()=>empezar(ronda(s.filtro));
+  window.scrollTo(0,0);
+}
+
+/* ================= PROGRESO ================= */
+function agrupar(det,clave){
+  const m={};det.forEach(d=>{const k=clave(d);(m[k]=m[k]||{n:0,ok:0,k}).n++;if(d.ok)m[k].ok++});
+  return Object.keys(m).map(k=>m[k]);
+}
+function renderProgreso(){
+  const R=Datos.resultados();
+  const sub=CONFIG.servidor?'Resultados de todos los dispositivos.':'Resultados guardados en este dispositivo.';
+  if(!R.length){
+    app.innerHTML='<p class="eyebrow">Progreso</p><h1>Mi progreso</h1><p class="sub">Aquí verás cómo vas cuando termines tu primera ronda.</p><button class="btn" data-a="inicio">Empezar a repasar '+ic('arrow')+'</button>';
+    return;
+  }
+  let det=[];R.forEach(r=>{det=det.concat(r.detalle||[])});
+  const ok=det.filter(d=>d.ok).length;
+  const porAsig=agrupar(det,d=>d.asignatura).sort((a,b)=>a.k.localeCompare(b.k,'es'));
+  const reforzar=agrupar(det,d=>d.asignatura+'||'+d.tema).filter(g=>g.n>=3&&pct(g.ok,g.n)<70).sort((a,b)=>pct(a.ok,a.n)-pct(b.ok,b.n)).slice(0,5);
+  const barra=(nombre,g,w)=>'<div class="stat"><div class="r"><span>'+esc(nombre)+'</span><span>'+pct(g.ok,g.n)+'%</span></div><div class="linea'+(w?' w':'')+'"><i style="width:'+pct(g.ok,g.n)+'%"></i></div><small>'+g.ok+' de '+g.n+' acertadas</small></div>';
+  app.innerHTML=
+    '<p class="eyebrow">Progreso</p><h1>Mi progreso</h1><p class="sub">'+sub+'</p>'+
+    '<div class="kpis"><div class="kpi"><b>'+R.length+'</b><small>Rondas</small></div><div class="kpi"><b>'+det.length+'</b><small>Respuestas</small></div><div class="kpi"><b>'+pct(ok,det.length)+'%</b><small>Aciertos</small></div></div>'+
+    '<section class="sec-block"><h2>Por asignatura</h2>'+porAsig.map(g=>barra(g.k,g)).join('')+'</section>'+
+    (reforzar.length?'<section class="sec-block"><h2>Temas para reforzar</h2>'+reforzar.map(g=>{const t=g.k.split('||');return barra(t[1]+' · '+t[0],g,true)}).join('')+'</section>':'')+
+    '<section class="sec-block"><h2>Últimas rondas</h2><div>'+R.slice(-6).reverse().map(r=>{
+      const que=[r.asignatura,r.tema].filter(Boolean).join(' · ')||'Todo mezclado';
+      return '<div class="ses"><span>'+esc(que)+'<small>'+fechaHora(r.fecha)+'</small></span><span>'+r.aciertos+'/'+r.total+'</span></div>';
+    }).join('')+'</div></section>';
+}
+
+/* ================= PREGUNTAS (gestión) ================= */
+function filaArchivo(a,tipo){
+  return '<div class="arch">'+ic('file')+'<div class="n"><b>'+esc(a.nombre)+'</b><small>'+plural(a.preguntas.length,'pregunta','preguntas')+
+    (a.fecha&&tipo==='s'?' · '+fechaHora(a.fecha):'')+
+    (a.errores.length?' · <span class="e">'+plural(a.errores.length,'con error','con errores')+'</span>':'')+'</small>'+
+    (a.errores.length?'<ul class="errs">'+a.errores.slice(0,10).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'')+'</div>'+
+    '<div class="acts"><button class="icbtn" data-a="editarArch" data-t="'+tipo+'" data-id="'+esc(tipo==='s'?a.id:a.nombre)+'" aria-label="Editar '+esc(a.nombre)+'">'+ic('edit')+'</button>'+
+    (tipo==='s'?'<button class="icbtn" data-a="retirar" data-id="'+esc(a.id)+'" aria-label="Quitar '+esc(a.nombre)+'">'+ic('trash')+'</button>':'')+'</div></div>';
+}
+function renderPreguntas(){
+  let h='<p class="eyebrow">Preguntas</p><h1>Banco de preguntas</h1><p class="sub">Añade preguntas nuevas cuando empieces un tema. Las que ya hay no se borran.</p>';
+  h+=avisoConexion();
+  if(CONFIG.servidor&&!Datos.servidorOk&&Datos.estado!=='cargando')h+=aviso('err','No hay conexión con el servidor. Puedes repasar, pero no subir preguntas hasta que vuelva.');
+  if(Datos.extra.length)h+=aviso('info','Estás probando '+plural(Datos.extra.length,'pregunta','preguntas')+' que todavía no están subidas. <button class="link" data-a="quitarExtra">Dejar de probar</button>');
+  h+='<div class="stack" style="margin-bottom:40px"><button class="btn" data-a="importar">'+ic('plus')+'Añadir preguntas con IA</button><button class="btn sec" data-a="editorNuevo">'+ic('edit')+'Escribir preguntas a mano</button></div>';
+  h+='<section class="sec-block"><div class="head-row"><h2>Preguntas subidas</h2><button class="link" data-a="actualizar">'+ic('refresh')+'Actualizar</button></div>';
+  if(Datos.estado==='cargando')h+='<p class="count">Cargando…</p>';
+  else{
+    h+='<p class="count">'+plural(Datos.base.length,'pregunta','preguntas')+' en total'+(Datos.fecha?' · comprobado el '+fechaHora(Datos.fecha):'')+'</p>';
+    const subs=Datos.subidas.slice().reverse();
+    h+=subs.length?'<div>'+subs.map(a=>filaArchivo(a,'s')).join('')+'</div>':'<p class="count">Todavía no se ha subido ninguna.</p>';
+    if(Datos.archivos.length)h+='<p class="res-t">Preguntas de base</p><div>'+Datos.archivos.map(a=>filaArchivo(a,'r')).join('')+'</div>';
+  }
+  h+='</section>';
+  h+='<section class="sec-block"><h2>Más opciones</h2><div>'+
+    '<button class="lbtn" data-a="exportarTodo">'+ic('download')+'<span>Descargar todas las preguntas<small>Copia de seguridad en un archivo XML</small></span></button>'+
+    '<button class="lbtn" data-a="plantilla">'+ic('download')+'<span>Descargar plantilla XML<small>Ejemplo del formato</small></span></button>'+
+    '<button class="lbtn" data-a="exportarRes">'+ic('download')+'<span>Descargar resultados<small>Todas las rondas en un archivo</small></span></button>'+
+    '</div></section>';
+  if(!CONFIG.servidor)h+='<p class="nota">El servidor aún no está configurado: se pueden revisar y probar preguntas, pero no subirlas. Ver «servidor-google/INSTALAR.md».</p>';
+  app.innerHTML=h;
+}
+async function actualizar(){
+  Datos.estado='cargando';PANT[E.pant]&&PANT[E.pant]();
+  await Datos.cargar(true);
+  PANT[E.pant]&&PANT[E.pant]();
+  toast(Datos.estado==='offline'?'Sin conexión: se mantienen las preguntas guardadas.':'Preguntas actualizadas.');
+}
+
+/* ================= AÑADIR PREGUNTAS CON IA ================= */
+function guardarImp(){ls.set(LS.imp,E.imp)}
+function promptTexto(){
+  const i=E.imp,c=norm(i.curso)||'[CURSO]',a=norm(i.asignatura)||'[ASIGNATURA]',t=norm(i.tema)||'[TEMA]';
+  return [
+'Actúa como profesor de '+a+' de '+c+'. Crea '+i.n+' preguntas tipo test para repasar el tema «'+t+'».',
+'',
+'Usa la información del material que te adjunto (fotos del libro o apuntes). Si no adjunto nada, usa lo que se estudia en '+c+' en ese tema.',
+'',
+'Reglas:',
+'- Lenguaje claro y adecuado a '+c+'.',
+'- Cada pregunta tiene 4 opciones y solo UNA correcta. Las incorrectas deben ser creíbles.',
+'- Incluye también algunas preguntas de verdadero o falso.',
+'- Cada pregunta lleva una explicación corta, de una frase.',
+'- Mezcla preguntas fáciles y difíciles, sin repetir ninguna.',
+'',
+'Responde SOLO con el XML, sin texto antes ni después, con este formato exacto:',
+'',
+'<?xml version="1.0" encoding="UTF-8"?>',
+'<banco>',
+'  <curso nombre="'+c+'">',
+'    <asignatura nombre="'+a+'">',
+'      <tema nombre="'+t+'">',
+'        <pregunta>',
+'          <enunciado>Texto de la pregunta</enunciado>',
+'          <opcion correcta="si">Respuesta correcta</opcion>',
+'          <opcion>Respuesta incorrecta</opcion>',
+'          <opcion>Respuesta incorrecta</opcion>',
+'          <opcion>Respuesta incorrecta</opcion>',
+'          <explicacion>Por qué es la correcta</explicacion>',
+'        </pregunta>',
+'        <pregunta respuesta="verdadero">',
+'          <enunciado>Una afirmación que sea verdadera o falsa</enunciado>',
+'          <explicacion>Por qué</explicacion>',
+'        </pregunta>',
+'      </tema>',
+'    </asignatura>',
+'  </curso>',
+'</banco>',
+'',
+'En las de verdadero o falso escribe respuesta="verdadero" o respuesta="falso". No uses los símbolos < ni > dentro de los textos.',
+'',
+'Material del tema:',
+'[Adjunta aquí fotos de las páginas del libro o pega tus apuntes]'
+  ].join('\n');
+}
+function renderImportar(){
+  const i=E.imp,P=Datos.todas();
+  app.innerHTML=
+    '<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
+    '<p class="eyebrow" style="margin-top:16px">Añadir preguntas</p><h1>Crea preguntas con una IA</h1>'+
+    '<p class="sub">Tres pasos. Las preguntas que ya hay no se borran: las nuevas se suman.</p>'+
+    (!CONFIG.servidor?aviso('info','El servidor aún no está configurado: podrás revisar y probar las preguntas, pero todavía no subirlas.'):'')+
+    '<div class="paso"><span class="num">1</span><div><b>Qué quieres repasar</b><p>Escribe el curso, la asignatura y el tema tal como aparecen en el libro.</p>'+
+      '<div class="field"><label class="lbl-f" for="iCurso">Curso</label><input class="in" id="iCurso" list="dl-c" data-imp="curso" value="'+esc(i.curso)+'" placeholder="Ej.: 5º Primaria"></div>'+
+      '<div class="field"><label class="lbl-f" for="iAsig">Asignatura</label><input class="in" id="iAsig" list="dl-a" data-imp="asignatura" value="'+esc(i.asignatura)+'" placeholder="Ej.: Ciencias Naturales"></div>'+
+      '<div class="field"><label class="lbl-f" for="iTema">Tema</label><input class="in" id="iTema" list="dl-t" data-imp="tema" value="'+esc(i.tema)+'" placeholder="Ej.: Tema 3: Las plantas"></div>'+
+      '<div class="field"><span class="lbl-f" id="lblIn">Cuántas preguntas</span><div class="chips" role="group" aria-labelledby="lblIn">'+
+        [10,15,20,30].map(n=>'<button class="chip" data-impn="'+n+'" aria-pressed="'+(i.n===n)+'">'+n+'</button>').join('')+'</div></div>'+
+    '</div></div>'+
+    '<div class="paso"><span class="num">2</span><div><b>Copia este texto y pégalo en una IA</b><p>Sirve ChatGPT, Gemini o Claude. Después de pegarlo, adjunta fotos de las páginas del libro o tus apuntes y envíalo.</p>'+
+      '<div class="field"><label class="sr" for="prompt">Texto para la IA</label><textarea class="in prompt" id="prompt" readonly>'+esc(promptTexto())+'</textarea></div>'+
+      '<button class="btn" data-a="copiarPrompt">'+ic('copy')+'Copiar texto</button>'+
+    '</div></div>'+
+    '<div class="paso"><span class="num">3</span><div><b>Pega aquí lo que te conteste</b><p>Copia toda la respuesta de la IA (empieza por &lt;?xml) y pégala aquí. También puedes elegir un archivo .xml.</p>'+
+      '<div class="field"><label class="sr" for="iXml">Respuesta de la IA</label><textarea class="in pegar" id="iXml" data-imp="xml" placeholder="&lt;?xml version=&quot;1.0&quot; ...&gt;" autocapitalize="off" autocorrect="off" spellcheck="false">'+esc(i.xml)+'</textarea></div>'+
+      '<div class="stack"><button class="btn" data-a="revisar">'+ic('search')+'Revisar preguntas</button>'+
+      '<button class="link" data-a="elegirXml">'+ic('file')+'Elegir un archivo .xml</button></div>'+
+    '</div></div>'+
+    '<div id="rev"></div>'+
+    datalist('dl-c',P.map(q=>q.curso))+datalist('dl-a',P.map(q=>q.asignatura))+
+    datalist('dl-t',P.filter(q=>!norm(i.asignatura)||q.asignatura===norm(i.asignatura)).map(q=>q.tema));
+  if(E.rev)pintarRevision();
+}
+async function copiarPrompt(){
+  const t=promptTexto();let ok=false;
+  try{await navigator.clipboard.writeText(t);ok=true}catch(e){
+    const ta=$('#prompt');ta.removeAttribute('readonly');ta.focus();ta.select();ta.setSelectionRange(0,t.length);
+    try{ok=document.execCommand('copy')}catch(x){}
+    ta.setAttribute('readonly','');
+  }
+  toast(ok?'Texto copiado. Pégalo en la IA.':'Mantén pulsado el texto para copiarlo.');
+}
+function revisar(){
+  const txt=E.imp.xml;
+  if(!norm(txt)){toast('Pega primero la respuesta de la IA.');$('#iXml').focus();return}
+  try{
+    const res=parsearXML(arreglarXML(txt),'');
+    const ex=new Set(Datos.base.map(q=>q.id));
+    E.rev={res,nuevas:res.ok.filter(q=>!ex.has(q.id)).length};
+  }catch(err){E.rev={error:err.message}}
+  pintarRevision();irA('#rev');
+}
+function pintarRevision(){
+  const r=E.rev,box=$('#rev');if(!box||!r)return;
+  if(r.error){
+    box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».')+'</section>';
+    return;
+  }
+  const {res,nuevas}=r,act=res.ok.length-nuevas;
+  const temas={};res.ok.forEach(q=>{(temas[q.asignatura+' · '+q.tema]=temas[q.asignatura+' · '+q.tema]||[]).push(q)});
+  box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+
+    (res.ok.length?'<p>'+plural(res.ok.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
+    (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
+    Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div>').join('')+
+    '<div class="stack" style="margin-top:24px">'+
+      (res.ok.length?'<button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Subir '+plural(res.ok.length,'pregunta','preguntas')+'</button>':'')+
+      '<button class="btn sec" data-a="impEditor">'+ic('edit')+'Corregir en el editor</button>'+
+      (res.ok.length?'<button class="btn sec" data-a="impProbar">Probar sin subir</button>':'')+
+    '</div></section>';
+}
+function nombreDe(lista,i){
+  const q=lista[0]||{};
+  return [slug(q.curso||i.curso),slug(q.asignatura||i.asignatura),slug(q.tema||i.tema)].filter(Boolean).join('_')+'.xml';
+}
+async function subirImp(btn){
+  const r=E.rev;if(!r||!r.res)return;
+  try{
+    await conBoton(btn,'Subiendo…',()=>subirXML(r.res.ok,nombreDe(r.res.ok,E.imp)));
+    const n=r.res.ok.length;
+    E.imp.xml='';E.rev=null;guardarImp();
+    renderImportar();
+    abrirModal('<p class="eyebrow">Hecho</p><h1 id="mTit">'+plural(n,'pregunta subida','preguntas subidas')+'</h1><p>Ya están en el quiz, en todos los dispositivos.</p>'+
+      '<div class="stack"><button class="btn" data-a="cerrarInicio">Empezar a repasar '+ic('arrow')+'</button><button class="btn sec" data-a="cerrar">Añadir más</button></div>');
+  }catch(e){toast('No se ha podido subir: '+e.message+'.')}
+}
+
+/* ---------- modal ---------- */
+function abrirModal(html){const m=$('#modal');m.innerHTML='<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mTit">'+html+'</div>';m.hidden=false;const b=m.querySelector('button,a');if(b)b.focus()}
+function cerrarModal(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
+function leerArchivo(f,cb){const rd=new FileReader();rd.onload=()=>cb(String(rd.result));rd.readAsText(f,'UTF-8')}
+$('#fileXml').onchange=e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  leerArchivo(f,txt=>{E.imp.xml=txt;guardarImp();const ta=$('#iXml');if(ta)ta.value=txt;revisar()});
+};
+
+/* ================= EDITOR ================= */
+function preguntaVacia(ed,base){return {id:nuevoId(),curso:ed?ed.curso:'',asignatura:ed?ed.asignatura:'',tema:base?base.tema:'',enunciado:'',tipo:'opciones',opciones:['','','',''],correcta:-1,explicacion:''}}
+function edNuevo(){const ed={nombre:'',curso:'',asignatura:'',mixto:false,subidaId:'',preguntas:[]};ed.preguntas.push(preguntaVacia(ed));return ed}
+function edDesde(todas,nombre,subidaId){
+  const qs=todas.map(q=>{
+    const vf=esVF(q),ops=q.opciones.slice();
+    while(!vf&&ops.length<2)ops.push('');
+    return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:vf?'vf':'opciones',opciones:ops,correcta:q.correcta,explicacion:q.explicacion||''};
+  });
+  const cs=unicos(qs.map(q=>q.curso)),as=unicos(qs.map(q=>q.asignatura));
+  const ed={nombre:nombre||'',curso:cs.length===1?cs[0]:'',asignatura:as.length===1?as[0]:'',mixto:cs.length>1||as.length>1,subidaId:subidaId||'',preguntas:qs};
+  if(!qs.length)qs.push(preguntaVacia(ed));
+  return ed;
+}
+const esVacia=q=>!norm(q.enunciado)&&!norm(q.explicacion)&&(q.tipo==='vf'||!q.opciones.some(o=>norm(o)));
+const tieneContenido=()=>E.ed&&E.ed.preguntas.some(q=>!esVacia(q));
+function nombreArchivo(){const ed=E.ed,p=[slug(ed.curso),slug(ed.asignatura)].filter(Boolean).join('_');return (p||'preguntas-nuevas')+'.xml'}
+function guardarBorrador(){ls.set(LS.borrador,E.ed)}
+function contar(){return E.ed.preguntas.filter(q=>!esVacia(q)).length}
+function refrescarPie(){
+  const b=$('#edGo');if(b)b.innerHTML=ic(CONFIG.servidor?'upload':'download')+(CONFIG.servidor?(E.ed.subidaId?'Guardar cambios':'Subir')+' · ':'Descargar XML · ')+plural(contar(),'pregunta','preguntas');
+  const n=$('#edNombre');if(n)n.placeholder=nombreArchivo();
+}
+function qHTML(q,i){
+  const k0=(a,extra)=>' data-ed="'+a+'" data-q="'+i+'"'+(extra||'');
+  let resp;
+  if(q.tipo==='vf'){
+    resp='<div class="chips" role="group" aria-label="Respuesta correcta de la pregunta '+(i+1)+'">'+['Verdadero','Falso'].map((t,k)=>'<button class="chip"'+k0('vf',' data-o="'+k+'"')+' aria-pressed="'+(q.correcta===k)+'">'+t+'</button>').join('')+'</div><p class="hint">Marca cuál es la correcta.</p>';
+  }else{
+    resp=q.opciones.map((o,k)=>'<div class="oprow">'+
+      '<button class="mark"'+k0('ok',' data-o="'+k+'"')+' aria-pressed="'+(q.correcta===k)+'" aria-label="Respuesta '+(k+1)+' es la correcta">'+ic('check')+'</button>'+
+      '<input class="in" data-q="'+i+'" data-o="'+k+'" value="'+esc(o)+'" placeholder="Respuesta '+(k+1)+'" aria-label="Pregunta '+(i+1)+', respuesta '+(k+1)+'">'+
+      (q.opciones.length>2?'<button class="del"'+k0('delo',' data-o="'+k+'"')+' aria-label="Quitar respuesta '+(k+1)+'">'+ic('x')+'</button>':'')+
+      '</div>').join('')+
+      '<p class="hint">Pulsa el cuadrado de la respuesta correcta.</p>'+
+      (q.opciones.length<6?'<button class="link"'+k0('addo')+'>'+ic('plus')+'Añadir respuesta</button>':'');
+  }
+  return '<section class="qbox" data-qbox="'+i+'">'+
+    '<div class="qbox-h"><h2>Pregunta '+(i+1)+'</h2><button class="icbtn"'+k0('delq')+' aria-label="Borrar pregunta '+(i+1)+'">'+ic('trash')+'</button></div>'+
+    '<div class="field"><label class="lbl-f" for="t'+i+'">Tema</label><input class="in" id="t'+i+'" list="dl-t" data-q="'+i+'" data-f="tema" value="'+esc(q.tema)+'" placeholder="Ej.: Tema 3: Las plantas"></div>'+
+    '<div class="field"><label class="lbl-f" for="e'+i+'">Pregunta</label><textarea class="in" id="e'+i+'" data-q="'+i+'" data-f="enunciado" rows="2">'+esc(q.enunciado)+'</textarea></div>'+
+    '<div class="field"><span class="lbl-f">Tipo</span><div class="chips" role="group" aria-label="Tipo de pregunta '+(i+1)+'">'+
+      '<button class="chip"'+k0('tipo',' data-v="opciones"')+' aria-pressed="'+(q.tipo!=='vf')+'">Varias respuestas</button>'+
+      '<button class="chip"'+k0('tipo',' data-v="vf"')+' aria-pressed="'+(q.tipo==='vf')+'">Verdadero o falso</button></div></div>'+
+    '<div class="field"><span class="lbl-f">Respuestas</span>'+resp+'</div>'+
+    '<div class="field"><label class="lbl-f" for="x'+i+'">Explicación (opcional)</label><textarea class="in short" id="x'+i+'" data-q="'+i+'" data-f="explicacion" rows="2" placeholder="Se muestra después de responder">'+esc(q.explicacion)+'</textarea></div>'+
+  '</section>';
+}
+function renderEditor(){
+  if(!E.ed)E.ed=ls.get(LS.borrador,null)||edNuevo();
+  const ed=E.ed,P=Datos.todas();
+  const editando=ed.subidaId?Datos.subidas.find(s=>s.id===ed.subidaId):null;
+  app.innerHTML=
+    '<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
+    '<p class="eyebrow" style="margin-top:16px">Editor</p><h1>'+(editando?'Editar preguntas':'Escribir preguntas')+'</h1>'+
+    '<p class="sub">'+(editando?'Estás cambiando «'+esc(editando.nombre)+'». Al guardar, sustituye a la versión anterior.':'Escribe las preguntas y súbelas. Lo que escribes se guarda en este dispositivo mientras tanto.')+'</p>'+
+    '<div class="tool"><button class="btn sec" data-ed="nuevo">'+ic('plus')+'Nuevo</button><button class="btn sec" data-ed="abrir">'+ic('file')+'Abrir XML</button></div>'+
+    '<div id="edErr"></div>'+
+    '<section class="box">'+
+      '<div class="field"><label class="lbl-f" for="edCurso">Curso</label><input class="in" id="edCurso" list="dl-c" data-f="curso" value="'+esc(ed.curso)+'" placeholder="'+(ed.mixto?'Varios':'Ej.: 5º Primaria')+'"></div>'+
+      '<div class="field"><label class="lbl-f" for="edAsig">Asignatura</label><input class="in" id="edAsig" list="dl-a" data-f="asignatura" value="'+esc(ed.asignatura)+'" placeholder="'+(ed.mixto?'Varias':'Ej.: Ciencias Naturales')+'"></div>'+
+      '<div class="field"><label class="lbl-f" for="edNombre">Nombre</label><input class="in" id="edNombre" data-f="nombre" value="'+esc(ed.nombre)+'" placeholder="'+esc(nombreArchivo())+'" autocapitalize="off" autocorrect="off" spellcheck="false"></div>'+
+    '</section>'+
+    (ed.mixto?aviso('info','Este grupo tiene varios cursos o asignaturas. Si escribes un curso o una asignatura arriba, se cambiará en todas las preguntas.'):'')+
+    ed.preguntas.map(qHTML).join('')+
+    '<button class="btn sec" data-ed="addq">'+ic('plus')+'Añadir pregunta</button>'+
+    '<button class="link" data-ed="descargar" style="margin-top:8px">'+ic('download')+'Descargar como XML</button>'+
+    '<div class="bar-bottom"><button class="btn" id="edGo" data-ed="guardar"></button></div>'+
+    datalist('dl-c',P.map(q=>q.curso).concat(ed.curso))+
+    datalist('dl-a',P.map(q=>q.asignatura).concat(ed.asignatura))+
+    datalist('dl-t',P.filter(q=>!ed.asignatura||q.asignatura===ed.asignatura).map(q=>q.tema).concat(ed.preguntas.map(q=>q.tema)));
+  refrescarPie();
+}
+function validarEditor(){
+  const ed=E.ed,errores=[],lista=[];
+  ed.preguntas.forEach((q,i)=>{
+    if(esVacia(q))return;
+    const full=Object.assign({},q,{curso:q.curso||ed.curso,asignatura:q.asignatura||ed.asignatura});
+    const e=errorDe(full);if(e)errores.push({i,msg:'Pregunta '+(i+1)+': '+e+'.'});else lista.push(limpiar(full));
+  });
+  document.querySelectorAll('.qbox').forEach(b=>b.classList.toggle('err',errores.some(x=>x.i===+b.dataset.qbox)));
+  if(!lista.length&&!errores.length){toast('Escribe al menos una pregunta.');return null}
+  if(errores.length){
+    $('#edErr').innerHTML=aviso('err','<b>Corrige esto antes de guardar:</b><ul class="errs">'+errores.map(x=>'<li>'+esc(x.msg)+'</li>').join('')+'</ul>');
+    irA('#edErr');return null;
+  }
+  $('#edErr').innerHTML='';
+  return lista;
+}
+function nombreFinal(){let n=norm(E.ed.nombre)||nombreArchivo();if(!/\.xml$/i.test(n))n+='.xml';return n}
+async function guardarEditor(btn){
+  const lista=validarEditor();if(!lista)return;
+  if(!CONFIG.servidor){descargar(aXML(lista),nombreFinal(),'application/xml');toast('Archivo descargado.');return}
+  try{
+    const j=await conBoton(btn,'Guardando…',()=>subirXML(lista,nombreFinal(),E.ed.subidaId));
+    E.ed.subidaId=j.id||E.ed.subidaId;guardarBorrador();renderEditor();
+    toast(plural(lista.length,'pregunta guardada','preguntas guardadas')+'. Ya están en el quiz.');
+  }catch(e){toast('No se ha podido guardar: '+e.message+'.')}
+}
+function accionEditor(b){
+  const ed=E.ed,a=b.dataset.ed,i=+b.dataset.q,k=+b.dataset.o,q=ed.preguntas[i];
+  let foco=null;
+  switch(a){
+    case 'nuevo':
+      if(tieneContenido()&&!confirm('¿Empezar de cero? Se quitará del editor lo que hay ahora (lo que ya está subido no se borra).'))return;
+      E.ed=edNuevo();guardarBorrador();renderEditor();window.scrollTo(0,0);return;
+    case 'abrir':$('#fileEd').click();return;
+    case 'guardar':guardarEditor(b);return;
+    case 'descargar':{const l=validarEditor();if(l){descargar(aXML(l),nombreFinal(),'application/xml');toast('Archivo descargado.')}return}
+    case 'addq':{const n=preguntaVacia(ed,ed.preguntas[ed.preguntas.length-1]);ed.preguntas.push(n);foco='#e'+(ed.preguntas.length-1);break}
+    case 'delq':
+      if(!esVacia(q)&&!confirm('¿Quitar la pregunta '+(i+1)+'?'))return;
+      ed.preguntas.splice(i,1);if(!ed.preguntas.length)ed.preguntas.push(preguntaVacia(ed));break;
+    case 'addo':q.opciones.push('');foco='input[data-q="'+i+'"][data-o="'+(q.opciones.length-1)+'"]';break;
+    case 'delo':q.opciones.splice(k,1);if(q.correcta===k)q.correcta=-1;else if(q.correcta>k)q.correcta--;break;
+    case 'ok':case 'vf':q.correcta=k;break;
+    case 'tipo':
+      if(b.dataset.v===q.tipo)return;
+      if(b.dataset.v==='vf'){q._ops=q.opciones;q._c=q.correcta;q.opciones=['Verdadero','Falso'];q.correcta=-1}
+      else{q.opciones=q._ops||['','','',''];q.correcta=q._c!=null?q._c:-1}
+      q.tipo=b.dataset.v;break;
+  }
+  guardarBorrador();
+  const sel='[data-ed="'+a+'"][data-q="'+i+'"]'+(b.dataset.o!=null?'[data-o="'+k+'"]':'')+(b.dataset.v?'[data-v="'+b.dataset.v+'"]':'');
+  renderEditor();
+  const f=(foco&&$(foco))||$(sel)||$('[data-qbox="'+Math.min(i,ed.preguntas.length-1)+'"] textarea');
+  if(f){try{f.focus({preventScroll:!foco})}catch(e){f.focus()}if(foco)f.scrollIntoView({behavior:'smooth',block:'center'})}
+}
+$('#fileEd').onchange=e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  leerArchivo(f,txt=>{
+    let res;try{res=parsearXML(arreglarXML(txt),f.name)}catch(err){toast(err.message);return}
+    if(tieneContenido()&&!confirm('¿Abrir «'+f.name+'»? Se sustituirá lo que hay ahora en el editor.'))return;
+    E.ed=edDesde(res.todas,f.name);guardarBorrador();renderEditor();window.scrollTo(0,0);
+    toast(res.errores.length?'Abierto. Hay '+plural(res.errores.length,'pregunta','preguntas')+' por corregir.':'Abierto: '+f.name);
+  });
+};
+
+/* ---------- plantilla ---------- */
+const PLANTILLA=[
+'<?xml version="1.0" encoding="UTF-8"?>',
+'<!--',
+'  PLANTILLA DE PREGUNTAS',
+'  · Cada pregunta lleva un enunciado, 2 o más opciones y UNA con correcta="si".',
+'  · La explicacion es opcional: se muestra después de responder.',
+'  · Verdadero o falso: escribe respuesta="verdadero" o respuesta="falso" y no pongas opciones.',
+'  · Lo más fácil es no escribirlo a mano: usa «Añadir preguntas con IA» en la app.',
+'-->',
+'<banco>',
+'  <curso nombre="5º Primaria">',
+'    <asignatura nombre="Ciencias Naturales">',
+'      <tema nombre="Tema 3: Las plantas">',
+'        <pregunta>',
+'          <enunciado>¿Qué parte de la planta absorbe el agua del suelo?</enunciado>',
+'          <opcion correcta="si">La raíz</opcion>',
+'          <opcion>Las hojas</opcion>',
+'          <opcion>La flor</opcion>',
+'          <opcion>El fruto</opcion>',
+'          <explicacion>La raíz absorbe el agua y las sales minerales del suelo.</explicacion>',
+'        </pregunta>',
+'        <pregunta respuesta="verdadero">',
+'          <enunciado>Las plantas necesitan luz para hacer la fotosíntesis.</enunciado>',
+'        </pregunta>',
+'      </tema>',
+'    </asignatura>',
+'  </curso>',
+'</banco>',''].join('\n');
+
+/* ---------- acciones ---------- */
+function abrirArchivo(el){
+  const id=el.dataset.id,a=el.dataset.t==='s'?Datos.subidas.find(s=>s.id===id):Datos.archivos.find(x=>x.nombre===id);
+  if(!a)return;
+  if(tieneContenido()&&!confirm('¿Abrir «'+a.nombre+'» en el editor? Se quitará del editor lo que hay ahora (lo subido no se borra).'))return;
+  E.ed=edDesde(a.todas&&a.todas.length?a.todas:a.preguntas,a.nombre,el.dataset.t==='s'?a.id:'');
+  guardarBorrador();ir('editor');
+}
+async function retirar(el){
+  const a=Datos.subidas.find(s=>s.id===el.dataset.id);if(!a)return;
+  if(!confirm('¿Quitar «'+a.nombre+'» del quiz? Sus '+plural(a.preguntas.length,'pregunta dejará','preguntas dejarán')+' de salir.'))return;
+  try{await servidorPost({accion:'retirar',id:a.id});await Datos.cargar();renderPreguntas();toast('Quitado del quiz.')}
+  catch(e){toast('No se ha podido quitar: '+e.message+'.')}
+}
+const A={
+  inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
+  editor:()=>ir('editor'),
+  editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},
+  salir:()=>{if(confirm('¿Salir de la ronda? Se perderá lo que llevas.'))ir('inicio')},
+  actualizar,
+  copiarPrompt,revisar,
+  elegirXml:()=>$('#fileXml').click(),
+  subirImp:el=>subirImp(el),
+  impEditor:()=>{
+    const r=E.rev;if(!r||!r.res)return;
+    if(tieneContenido()&&!confirm('¿Pasar estas preguntas al editor? Se quitará del editor lo que hay ahora.'))return;
+    E.ed=edDesde(r.res.todas,nombreDe(r.res.ok,E.imp));guardarBorrador();ir('editor');
+  },
+  impProbar:()=>{
+    const r=E.rev;if(!r||!r.res)return;
+    Datos.extra=r.res.ok.map(q=>Object.assign({},q,{archivo:'prueba'}));
+    const q=r.res.ok[0];if(q){E.filtro={curso:q.curso,asignatura:q.asignatura,tema:q.tema};ls.set(LS.filtro,E.filtro)}
+    ir('inicio');toast('Probando '+plural(Datos.extra.length,'pregunta','preguntas')+' sin subirlas.');
+  },
+  quitarExtra:()=>{Datos.extra=[];PANT[E.pant]&&PANT[E.pant]();toast('Prueba terminada.')},
+  editarArch:el=>abrirArchivo(el),
+  retirar:el=>retirar(el),
+  exportarTodo:()=>descargar(aXML(Datos.base),'todas-las-preguntas.xml','application/xml'),
+  plantilla:()=>descargar(PLANTILLA,'plantilla-preguntas.xml','application/xml'),
+  exportarRes:()=>descargar(JSON.stringify(Datos.resultados(),null,2),'resultados-repaso.json','application/json'),
+  cerrar:cerrarModal,
+  cerrarInicio:()=>{cerrarModal();ir('inicio')}
+};
+document.addEventListener('click',e=>{
+  const ed=e.target.closest('[data-ed]');
+  if(ed&&E.pant==='editor'){accionEditor(ed);return}
+  const n=e.target.closest('[data-impn]');
+  if(n&&E.pant==='importar'){
+    E.imp.n=+n.dataset.impn;guardarImp();
+    app.querySelectorAll('[data-impn]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.impn===E.imp.n)));
+    $('#prompt').value=promptTexto();return;
+  }
+  const el=e.target.closest('[data-a]');
+  if(el){
+    const a=el.dataset.a,s=E.sesion;
+    if(E.pant==='pregunta'&&s&&s.resp.length>0&&['inicio','progreso','preguntas'].indexOf(a)>=0&&!confirm('¿Salir de la ronda? Se perderá lo que llevas.'))return;
+    if(A[a])A[a](el);return;
+  }
+  if(e.target.id==='modal')cerrarModal();
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(E.pant==='importar'&&t.dataset.imp){
+    E.imp[t.dataset.imp]=t.value;guardarImp();
+    if(t.dataset.imp==='xml'){E.rev=null;const r=$('#rev');if(r)r.innerHTML=''}
+    else $('#prompt').value=promptTexto();
+    return;
+  }
+  if(E.pant!=='editor'||!E.ed)return;
+  const ed=E.ed;
+  if(t.dataset.q!=null&&t.dataset.o!=null)ed.preguntas[+t.dataset.q].opciones[+t.dataset.o]=t.value;
+  else if(t.dataset.q!=null&&t.dataset.f)ed.preguntas[+t.dataset.q][t.dataset.f]=t.value;
+  else if(t.dataset.f){
+    ed[t.dataset.f]=t.value;
+    if(t.dataset.f==='curso'||t.dataset.f==='asignatura')ed.preguntas.forEach(q=>{q[t.dataset.f]=t.value});
+  }else return;
+  if(t.closest('.qbox'))t.closest('.qbox').classList.remove('err');
+  guardarBorrador();refrescarPie();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden)cerrarModal()});
+
+/* ---------- arranque ---------- */
+Datos.cargar().then(()=>{if(E.pant!=='pregunta'&&E.pant!=='resultado'&&E.pant!=='editor'&&E.pant!=='importar')PANT[E.pant]()});
+ir('inicio');
+})();
+</script>
+</body>
+</html>

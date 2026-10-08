@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<banco>
+  <curso nombre="5º Primaria">
+    <asignatura nombre="Matemáticas">
+      <tema nombre="Tema 1: Números grandes">
+        <pregunta id="ej-ma-01">
+          <enunciado>¿Cuántas unidades tiene un millón?</enunciado>
+          <opcion correcta="si">1.000.000</opcion>
+          <opcion>100.000</opcion>
+          <opcion>10.000.000</opcion>
+          <opcion>1.000</opcion>
+          <explicacion>Un millón son mil millares: 1.000.000 unidades.</explicacion>
+        </pregunta>
+        <pregunta id="ej-ma-02">
+          <enunciado>¿Qué valor tiene la cifra 7 en el número 3.700.000?</enunciado>
+          <opcion correcta="si">700.000</opcion>
+          <opcion>7.000.000</opcion>
+          <opcion>70.000</opcion>
+          <opcion>7</opcion>
+          <explicacion>El 7 está en las centenas de millar, así que vale 700.000.</explicacion>
+        </pregunta>
+      </tema>
+      <tema nombre="Tema 2: Fracciones">
+        <pregunta id="ej-ma-03">
+          <enunciado>¿Qué fracción es equivalente a 1/2?</enunciado>
+          <opcion correcta="si">2/4</opcion>
+          <opcion>2/3</opcion>
+          <opcion>1/4</opcion>
+          <opcion>3/4</opcion>
+          <explicacion>Si multiplicas arriba y abajo por 2, 1/2 se convierte en 2/4.</explicacion>
+        </pregunta>
+        <pregunta id="ej-ma-04">
+          <enunciado>Una pizza tiene 8 trozos y te comes 3. ¿Qué fracción te has comido?</enunciado>
+          <opcion correcta="si">3/8</opcion>
+          <opcion>5/8</opcion>
+          <opcion>8/3</opcion>
+          <opcion>3/5</opcion>
+          <explicacion>El denominador son las partes totales (8) y el numerador las que tomas (3).</explicacion>
+        </pregunta>
+        <pregunta id="ej-ma-05">
+          <enunciado>¿Qué fracción es mayor?</enunciado>
+          <opcion correcta="si">3/4</opcion>
+          <opcion>2/4</opcion>
+          <opcion>Son iguales</opcion>
+          <explicacion>Con el mismo denominador, es mayor la que tiene el numerador más grande.</explicacion>
+        </pregunta>
+      </tema>
+    </asignatura>
+  </curso>
+</banco>

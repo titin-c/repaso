@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<banco>
+  <curso nombre="1º ESO">
+    <asignatura nombre="Geografía">
+      <tema nombre="Tema 1: La Tierra en el universo">
+        <pregunta id="ej-ge-01">
+          <enunciado>¿Cuánto tarda la Tierra en dar una vuelta completa alrededor del Sol?</enunciado>
+          <opcion correcta="si">Unos 365 días</opcion>
+          <opcion>24 horas</opcion>
+          <opcion>30 días</opcion>
+          <opcion>12 horas</opcion>
+          <explicacion>Es el movimiento de traslación y dura un año.</explicacion>
+        </pregunta>
+        <pregunta id="ej-ge-02">
+          <enunciado>¿Qué línea imaginaria divide la Tierra en hemisferio norte y hemisferio sur?</enunciado>
+          <opcion correcta="si">El ecuador</opcion>
+          <opcion>El meridiano de Greenwich</opcion>
+          <opcion>El trópico de Cáncer</opcion>
+          <opcion>El círculo polar ártico</opcion>
+          <explicacion>El ecuador es el paralelo 0º.</explicacion>
+        </pregunta>
+        <pregunta id="ej-ge-03">
+          <enunciado>¿Cuál es el océano más grande del planeta?</enunciado>
+          <opcion correcta="si">Pacífico</opcion>
+          <opcion>Atlántico</opcion>
+          <opcion>Índico</opcion>
+          <opcion>Ártico</opcion>
+          <explicacion>El Pacífico cubre casi un tercio de la superficie de la Tierra.</explicacion>
+        </pregunta>
+      </tema>
+    </asignatura>
+  </curso>
+</banco>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<banco>
+  <curso nombre="5º Primaria">
+    <asignatura nombre="Ciencias Naturales">
+      <tema nombre="Tema 1: Los seres vivos">
+        <pregunta id="ej-cn-01">
+          <enunciado>¿Cuáles son las tres funciones vitales de los seres vivos?</enunciado>
+          <opcion correcta="si">Nutrición, relación y reproducción</opcion>
+          <opcion>Comer, dormir y crecer</opcion>
+          <opcion>Respirar, moverse y hablar</opcion>
+          <opcion>Nacer, crecer y morir</opcion>
+          <explicacion>Todos los seres vivos se nutren, se relacionan con su entorno y se reproducen.</explicacion>
+        </pregunta>
+        <pregunta id="ej-cn-02">
+          <enunciado>¿Qué seres vivos fabrican su propio alimento con la fotosíntesis?</enunciado>
+          <opcion correcta="si">Las plantas</opcion>
+          <opcion>Los animales</opcion>
+          <opcion>Los hongos</opcion>
+          <explicacion>Las plantas usan la luz del sol, el agua y el dióxido de carbono para fabricar su alimento.</explicacion>
+        </pregunta>
+        <pregunta id="ej-cn-03" respuesta="verdadero">
+          <enunciado>La célula es la unidad más pequeña que forma un ser vivo.</enunciado>
+          <explicacion>Todos los seres vivos están formados por una o más células.</explicacion>
+        </pregunta>
+      </tema>
+      <tema nombre="Tema 2: El cuerpo humano">
+        <pregunta id="ej-cn-04">
+          <enunciado>¿Qué órgano bombea la sangre por todo el cuerpo?</enunciado>
+          <opcion correcta="si">El corazón</opcion>
+          <opcion>Los pulmones</opcion>
+          <opcion>El hígado</opcion>
+          <opcion>El estómago</opcion>
+          <explicacion>El corazón es un músculo que impulsa la sangre a través de los vasos sanguíneos.</explicacion>
+        </pregunta>
+        <pregunta id="ej-cn-05">
+          <enunciado>¿Cuántos huesos tiene aproximadamente una persona adulta?</enunciado>
+          <opcion correcta="si">206</opcion>
+          <opcion>106</opcion>
+          <opcion>306</opcion>
+          <opcion>56</opcion>
+          <explicacion>El esqueleto adulto tiene unos 206 huesos.</explicacion>
+        </pregunta>
+        <pregunta id="ej-cn-06" respuesta="falso">
+          <enunciado>Los pulmones forman parte del aparato digestivo.</enunciado>
+          <explicacion>Los pulmones forman parte del aparato respiratorio.</explicacion>
+        </pregunta>
+      </tema>
+    </asignatura>
+  </curso>
+</banco>
