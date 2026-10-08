@@ -199,6 +199,12 @@ textarea.in.pegar{min-height:180px;font-size:14px;font-family:ui-monospace,SFMon
 .paso .field{margin-bottom:16px}
 .paso .chips{margin-bottom:4px}
 .acts{display:flex;align-items:center;margin:-10px -10px -10px 0}
+.nombre-p{padding:14px 0;border-top:1px solid var(--line)}
+.nombre-p:first-of-type{border-top:0;padding-top:0}
+.nombre-p p{margin:0 0 10px}
+.nombre-p .eyebrow{font-size:11px}
+.hint-nombre{margin-top:8px;font-size:14px}
+.hint-nombre .link{min-height:0;padding:0;margin-left:6px}
 .res-t{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -287,6 +293,48 @@ function descargar(contenido,nombre,tipo){
   setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function aviso(tipo,html){return '<div class="aviso '+tipo+'" role="status">'+ic(tipo==='err'?'alert':'info')+'<div>'+html+'</div></div>'}
+/* ---------- nombres: mismo curso/asignatura/tema aunque se escriban distinto ---------- */
+/* «Tema2: Biologia», «tema 2 - biología» y «Biologia» (valenciano) dan la misma clave */
+const clave=s=>norm(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'');
+const numerosDe=s=>(norm(s).match(/\d+/g)||[]).map(Number).join(',');
+function distancia(a,b){
+  if(a===b)return 0;if(!a.length)return b.length;if(!b.length)return a.length;
+  let prev=Array.from({length:b.length+1},(_,j)=>j);
+  for(let i=1;i<=a.length;i++){const cur=[i];for(let j=1;j<=b.length;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur}
+  return prev[b.length];
+}
+/* ¿Parecen el mismo nombre con una errata o en otro idioma parecido? Los números (Tema 2 / Tema 3) tienen que coincidir. */
+function parecido(a,b){
+  if(numerosDe(a)!==numerosDe(b))return 0;
+  const x=clave(a).replace(/\d+/g,''),y=clave(b).replace(/\d+/g,'');
+  if(!x||!y)return 0;
+  if(x===y)return 1;
+  const s=1-distancia(x,y)/Math.max(x.length,y.length);
+  const contiene=Math.min(x.length,y.length)>=5&&(x.indexOf(y)>=0||y.indexOf(x)>=0)?.8:0;
+  return Math.max(s,contiene);
+}
+function masParecido(nombre,lista){
+  let mejor=null,nota=0;
+  lista.forEach(x=>{const p=parecido(nombre,x);if(p>nota){nota=p;mejor=x}});
+  return nota>=.72?mejor:null;
+}
+const ctxTema=(c,a)=>clave(c)+'|'+clave(a)+'|';
+/* Aplica las uniones guardadas y deja un único nombre visible por clave (el primero que apareció) */
+function canonizar(listas,alias){
+  const A={};(alias||[]).forEach(x=>{A[x.tipo+':'+x.de]=x.a});
+  const canon={};
+  const res=(tipo,ctx,nombre)=>{
+    let k=ctx+clave(nombre);const vistos={};
+    while(A[tipo+':'+k]&&!vistos[k]){vistos[k]=1;nombre=A[tipo+':'+k];k=ctx+clave(nombre)}
+    const ck=tipo+':'+k;if(!canon[ck])canon[ck]=nombre;return canon[ck];
+  };
+  listas.forEach(l=>l.forEach(q=>{
+    if(!q.curso||!q.asignatura)return;
+    q.curso=res('curso','',q.curso);
+    q.asignatura=res('asignatura','',q.asignatura);
+    if(q.tema)q.tema=res('tema',ctxTema(q.curso,q.asignatura),q.tema);
+  }));
+}
 function irA(sel){const el=$(sel);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
 
 /* ---------- servidor (Google Apps Script) ---------- */
@@ -363,8 +411,12 @@ function leerPregunta(n){
   if(!ops.length&&resp){const v=/^(v|verdadero|true|si|sí)/.test(resp);ops=[{t:'Verdadero',c:v},{t:'Falso',c:!v}]}
   const ex=hijos(n,['explicacion','explicación'])[0];
   const q={id:norm(n.getAttribute('id')),curso,asignatura,tema,enunciado,opciones:ops.map(o=>o.t),correcta:ops.findIndex(o=>o.c),nCorrectas:ops.filter(o=>o.c).length,explicacion:ex?norm(ex.textContent):''};
-  if(!q.id)q.id=(curso&&asignatura&&tema&&enunciado)?'q'+hashN([curso,asignatura,tema,enunciado].join('|').toLowerCase()).toString(36):nuevoId();
+  if(!q.id){q.id=idDe(q);q.idAuto=true}
   return q;
+}
+/* id estable a partir de los nombres (ya normalizados) y el enunciado: la misma pregunta no se duplica */
+function idDe(q){
+  return (q.curso&&q.asignatura&&q.tema&&q.enunciado)?'q'+hashN([clave(q.curso),clave(q.asignatura),clave(q.tema),clave(q.enunciado)].join('|')).toString(36):nuevoId();
 }
 function errorDe(q){
   const falta=['curso','asignatura','tema','enunciado'].filter(k=>!norm(q[k]));
@@ -376,7 +428,7 @@ function errorDe(q){
 }
 function limpiar(q){
   const keep=[];q.opciones.forEach((o,i)=>{if(norm(o))keep.push(i)});
-  return {id:q.id,curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
+  return {id:q.id,idAuto:!!q.idAuto,curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
     opciones:keep.map(i=>norm(q.opciones[i])),correcta:keep.indexOf(q.correcta),explicacion:norm(q.explicacion)};
 }
 const etiqueta=(q,i)=>q.enunciado?'«'+q.enunciado.slice(0,60)+(q.enunciado.length>60?'…':'')+'»':'Pregunta '+(i+1);
@@ -424,7 +476,7 @@ function aXML(P){
 
 /* ---------- datos ---------- */
 const Datos={
-  base:[],extra:[],archivos:[],subidas:[],resSrv:[],fecha:null,estado:'cargando',servidorOk:false,
+  base:[],extra:[],archivos:[],subidas:[],resSrv:[],alias:[],fecha:null,estado:'cargando',servidorOk:false,
   async cargar(forzar){
     this.estado='cargando';
     const cache=ls.get(LS.cache,null)||{};
@@ -445,7 +497,8 @@ const Datos={
     }
     const enLinea=!!(lista||srv);
     const c={fecha:enLinea?new Date().toISOString():cache.fecha,archivos,
-      subidas:srv?srv.subidas||[]:cache.subidas||[],resSrv:srv?srv.resultados||[]:cache.resSrv||[]};
+      subidas:srv?srv.subidas||[]:cache.subidas||[],resSrv:srv?srv.resultados||[]:cache.resSrv||[],
+      alias:srv?srv.alias||[]:cache.alias||[]};
     if(enLinea)ls.set(LS.cache,c);
     this.usar(c);
     this.servidorOk=!!srv;
@@ -453,13 +506,15 @@ const Datos={
     if(srv)this.sincronizar();
   },
   usar(c){
-    this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];
+    this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];this.alias=c.alias||[];
     this.subidas=(c.subidas||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(s=>{
       let r;try{r=parsearXML(arreglarXML(s.xml),s.nombre)}catch(e){r={ok:[],errores:[e.message],todas:[]}}
       return {id:s.id,nombre:s.nombre||'Sin nombre',fecha:s.fecha,preguntas:r.ok,errores:r.errores,todas:r.todas};
     });
+    const todos=this.archivos.concat(this.subidas);
+    canonizar(todos.map(a=>a.preguntas).concat(todos.map(a=>a.todas||[])),this.alias);
     const m=new Map();
-    this.archivos.concat(this.subidas).forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;m.set(q.id,q)}));
+    todos.forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;m.set(q.id,q)}));
     this.base=Array.from(m.values());
   },
   todas(){
@@ -502,11 +557,11 @@ function conBoton(btn,texto,fn){
 /* ---------- estado y navegación ---------- */
 const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
   imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:15,xml:''}),rev:null};
-const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar()};
+const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres()};
 function ir(p){
   E.pant=p;E.sesion=null;PANT[p]();
   document.querySelectorAll('.nav [data-a]').forEach(b=>{
-    if(b.dataset.a===p||((p==='editor'||p==='importar')&&b.dataset.a==='preguntas'))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+    if(b.dataset.a===p||((p==='editor'||p==='importar'||p==='nombres')&&b.dataset.a==='preguntas'))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
   });
   window.scrollTo(0,0);
 }
@@ -686,7 +741,9 @@ function renderPreguntas(){
     if(Datos.archivos.length)h+='<p class="res-t">Preguntas de base</p><div>'+Datos.archivos.map(a=>filaArchivo(a,'r')).join('')+'</div>';
   }
   h+='</section>';
+  const repes=Datos.base.length?[].concat(...gruposNombres().map(paresParecidos)).length:0;
   h+='<section class="sec-block"><h2>Más opciones</h2><div>'+
+    '<button class="lbtn" data-a="nombres">'+ic('list')+'<span>Cursos, asignaturas y temas<small>'+(repes?'<span class="e">'+plural(repes,'nombre parece repetido','nombres parecen repetidos')+'</span> · ':'')+'Unir nombres escritos de dos formas</small></span></button>'+
     '<button class="lbtn" data-a="exportarTodo">'+ic('download')+'<span>Descargar todas las preguntas<small>Copia de seguridad en un archivo XML</small></span></button>'+
     '<button class="lbtn" data-a="plantilla">'+ic('download')+'<span>Descargar plantilla XML<small>Ejemplo del formato</small></span></button>'+
     '<button class="lbtn" data-a="exportarRes">'+ic('download')+'<span>Descargar resultados<small>Todas las rondas en un archivo</small></span></button>'+
@@ -707,6 +764,8 @@ function promptTexto(){
   const i=E.imp,c=norm(i.curso)||'[CURSO]',a=norm(i.asignatura)||'[ASIGNATURA]',t=norm(i.tema)||'[TEMA]';
   return [
 'Actúa como profesor de '+a+' de '+c+'. Crea '+i.n+' preguntas tipo test para repasar el tema «'+t+'».',
+'',
+'Escribe el curso, la asignatura y el tema EXACTAMENTE como aparecen aquí, sin traducirlos ni cambiarlos.',
 '',
 'Usa la información del material que te adjunto (fotos del libro o apuntes). Si no adjunto nada, usa lo que se estudia en '+c+' en ese tema.',
 '',
@@ -755,9 +814,9 @@ function renderImportar(){
     '<p class="sub">Tres pasos. Las preguntas que ya hay no se borran: las nuevas se suman.</p>'+
     (!CONFIG.servidor?aviso('info','El servidor aún no está configurado: podrás revisar y probar las preguntas, pero todavía no subirlas.'):'')+
     '<div class="paso"><span class="num">1</span><div><b>Qué quieres repasar</b><p>Escribe el curso, la asignatura y el tema tal como aparecen en el libro.</p>'+
-      '<div class="field"><label class="lbl-f" for="iCurso">Curso</label><input class="in" id="iCurso" list="dl-c" data-imp="curso" value="'+esc(i.curso)+'" placeholder="Ej.: 5º Primaria"></div>'+
-      '<div class="field"><label class="lbl-f" for="iAsig">Asignatura</label><input class="in" id="iAsig" list="dl-a" data-imp="asignatura" value="'+esc(i.asignatura)+'" placeholder="Ej.: Ciencias Naturales"></div>'+
-      '<div class="field"><label class="lbl-f" for="iTema">Tema</label><input class="in" id="iTema" list="dl-t" data-imp="tema" value="'+esc(i.tema)+'" placeholder="Ej.: Tema 3: Las plantas"></div>'+
+      '<div class="field"><label class="lbl-f" for="iCurso">Curso</label><input class="in" id="iCurso" list="dl-c" data-imp="curso" value="'+esc(i.curso)+'" placeholder="Ej.: 5º Primaria"><p class="hint hint-nombre" id="hn-curso" aria-live="polite"></p></div>'+
+      '<div class="field"><label class="lbl-f" for="iAsig">Asignatura</label><input class="in" id="iAsig" list="dl-a" data-imp="asignatura" value="'+esc(i.asignatura)+'" placeholder="Ej.: Ciencias Naturales"><p class="hint hint-nombre" id="hn-asignatura" aria-live="polite"></p></div>'+
+      '<div class="field"><label class="lbl-f" for="iTema">Tema</label><input class="in" id="iTema" list="dl-t" data-imp="tema" value="'+esc(i.tema)+'" placeholder="Ej.: Tema 3: Las plantas"><p class="hint hint-nombre" id="hn-tema" aria-live="polite"></p></div>'+
       '<div class="field"><span class="lbl-f" id="lblIn">Cuántas preguntas</span><div class="chips" role="group" aria-labelledby="lblIn">'+
         [10,15,20,30].map(n=>'<button class="chip" data-impn="'+n+'" aria-pressed="'+(i.n===n)+'">'+n+'</button>').join('')+'</div></div>'+
     '</div></div>'+
@@ -773,7 +832,23 @@ function renderImportar(){
     '<div id="rev"></div>'+
     datalist('dl-c',P.map(q=>q.curso))+datalist('dl-a',P.map(q=>q.asignatura))+
     datalist('dl-t',P.filter(q=>!norm(i.asignatura)||q.asignatura===norm(i.asignatura)).map(q=>q.tema));
+  ['curso','asignatura','tema'].forEach(sugerirNombre);
   if(E.rev)pintarRevision();
+}
+/* Mientras escribe: avisa si ya existe un nombre igual o muy parecido */
+function existentesPara(tipo){
+  const P=Datos.base,i=E.imp;
+  if(tipo==='curso')return unicos(P.map(q=>q.curso));
+  if(tipo==='asignatura')return unicos(P.map(q=>q.asignatura));
+  return unicos(P.filter(q=>clave(q.curso)===clave(i.curso)&&clave(q.asignatura)===clave(i.asignatura)).map(q=>q.tema));
+}
+function sugerirNombre(tipo){
+  const h=$('#hn-'+tipo);if(!h)return;
+  const v=norm(E.imp[tipo]);if(!v){h.innerHTML='';return}
+  const ex=existentesPara(tipo),igual=ex.find(x=>clave(x)===clave(v));
+  if(igual){h.innerHTML=igual===v?'':'Ya existe como «'+esc(igual)+'». <button class="link" data-a="usarNombre" data-t="'+tipo+'" data-v="'+esc(igual)+'">Usar ese</button>';return}
+  const p=masParecido(v,ex);
+  h.innerHTML=p?'¿Querías decir «'+esc(p)+'»? <button class="link" data-a="usarNombre" data-t="'+tipo+'" data-v="'+esc(p)+'">Usar ese</button>':'';
 }
 async function copiarPrompt(){
   const t=promptTexto();let ok=false;
@@ -787,12 +862,36 @@ async function copiarPrompt(){
 function revisar(){
   const txt=E.imp.xml;
   if(!norm(txt)){toast('Pega primero la respuesta de la IA.');$('#iXml').focus();return}
-  try{
-    const res=parsearXML(arreglarXML(txt),'');
-    const ex=new Set(Datos.base.map(q=>q.id));
-    E.rev={res,nuevas:res.ok.filter(q=>!ex.has(q.id)).length};
-  }catch(err){E.rev={error:err.message}}
+  try{E.rev={res:parsearXML(arreglarXML(txt),''),dec:{}}}catch(err){E.rev={error:err.message}}
   pintarRevision();irA('#rev');
+}
+/* Compara los nombres del XML nuevo con los que ya existen.
+   Igual salvo tildes/mayúsculas/espacios → se usa el existente sin preguntar.
+   Parecido (errata, otro idioma) → se pregunta, con «es la misma» por defecto. */
+function nombresImport(lista,dec){
+  const P=Datos.base,props=[],map={curso:{},asignatura:{},tema:{}};
+  const ver=(tipo,ctx,nombre,existentes)=>{
+    if(map[tipo][ctx+nombre]!==undefined)return;
+    let dest=nombre;
+    const exacto=existentes.find(x=>clave(x)===clave(nombre));
+    if(exacto)dest=exacto;
+    else{
+      const p=masParecido(nombre,existentes);
+      if(p){const k=tipo+'|'+ctx+'|'+nombre,usar=dec[k]!==false;props.push({k,tipo,nuevo:nombre,existente:p,usar});if(usar)dest=p}
+    }
+    map[tipo][ctx+nombre]=dest;
+  };
+  lista.forEach(q=>ver('curso','',q.curso,unicos(P.map(x=>x.curso))));
+  lista.forEach(q=>ver('asignatura','',q.asignatura,unicos(P.map(x=>x.asignatura))));
+  lista.forEach(q=>{
+    const c=map.curso[q.curso],a=map.asignatura[q.asignatura];
+    ver('tema',ctxTema(c,a),q.tema,unicos(P.filter(x=>clave(x.curso)===clave(c)&&clave(x.asignatura)===clave(a)).map(x=>x.tema)));
+  });
+  const mapear=q=>{
+    const c=map.curso[q.curso]||q.curso,a=map.asignatura[q.asignatura]||q.asignatura,t=map.tema[ctxTema(c,a)+q.tema]||q.tema;
+    const n=Object.assign({},q,{curso:c,asignatura:a,tema:t});if(q.idAuto)n.id=idDe(n);return n;
+  };
+  return {props,mapear};
 }
 function pintarRevision(){
   const r=E.rev,box=$('#rev');if(!box||!r)return;
@@ -800,16 +899,24 @@ function pintarRevision(){
     box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».')+'</section>';
     return;
   }
-  const {res,nuevas}=r,act=res.ok.length-nuevas;
-  const temas={};res.ok.forEach(q=>{(temas[q.asignatura+' · '+q.tema]=temas[q.asignatura+' · '+q.tema]||[]).push(q)});
+  const res=r.res,{props,mapear}=nombresImport(res.ok,r.dec);
+  r.lista=res.ok.map(mapear);r.mapear=mapear;
+  const ex=new Set(Datos.base.map(q=>q.id)),nuevas=r.lista.filter(q=>!ex.has(q.id)).length,act=r.lista.length-nuevas;
+  const temas={};r.lista.forEach(q=>{const t=q.curso+' · '+q.asignatura+' · '+q.tema;(temas[t]=temas[t]||[]).push(q)});
+  const TIPO={curso:'Curso',asignatura:'Asignatura',tema:'Tema'};
   box.innerHTML='<section class="sec-block" style="margin-top:24px"><h2>Revisión</h2>'+
-    (res.ok.length?'<p>'+plural(res.ok.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
+    (props.length?'<div class="box"><h2>Nombres parecidos a otros que ya existen</h2><p class="hint" style="margin:-8px 0 16px">Para que no salgan repetidos en los filtros.</p>'+
+      props.map(p=>'<div class="nombre-p"><p><span class="eyebrow">'+TIPO[p.tipo]+'</span><br>«'+esc(p.nuevo)+'» ¿es «<b>'+esc(p.existente)+'</b>»?</p>'+
+        '<div class="chips" role="group" aria-label="¿Es el mismo nombre?">'+
+        '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="1" aria-pressed="'+p.usar+'">Sí, es el mismo</button>'+
+        '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="0" aria-pressed="'+!p.usar+'">No, es otro</button></div></div>').join('')+'</div>':'')+
+    (r.lista.length?'<p>'+plural(r.lista.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
     (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
     Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div>').join('')+
     '<div class="stack" style="margin-top:24px">'+
-      (res.ok.length?'<button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Subir '+plural(res.ok.length,'pregunta','preguntas')+'</button>':'')+
+      (r.lista.length?'<button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Subir '+plural(r.lista.length,'pregunta','preguntas')+'</button>':'')+
       '<button class="btn sec" data-a="impEditor">'+ic('edit')+'Corregir en el editor</button>'+
-      (res.ok.length?'<button class="btn sec" data-a="impProbar">Probar sin subir</button>':'')+
+      (r.lista.length?'<button class="btn sec" data-a="impProbar">Probar sin subir</button>':'')+
     '</div></section>';
 }
 function nombreDe(lista,i){
@@ -819,13 +926,60 @@ function nombreDe(lista,i){
 async function subirImp(btn){
   const r=E.rev;if(!r||!r.res)return;
   try{
-    await conBoton(btn,'Subiendo…',()=>subirXML(r.res.ok,nombreDe(r.res.ok,E.imp)));
-    const n=r.res.ok.length;
+    await conBoton(btn,'Subiendo…',()=>subirXML(r.lista,nombreDe(r.lista,E.imp)));
+    const n=r.lista.length;
     E.imp.xml='';E.rev=null;guardarImp();
     renderImportar();
     abrirModal('<p class="eyebrow">Hecho</p><h1 id="mTit">'+plural(n,'pregunta subida','preguntas subidas')+'</h1><p>Ya están en el quiz, en todos los dispositivos.</p>'+
       '<div class="stack"><button class="btn" data-a="cerrarInicio">Empezar a repasar '+ic('arrow')+'</button><button class="btn sec" data-a="cerrar">Añadir más</button></div>');
   }catch(e){toast('No se ha podido subir: '+e.message+'.')}
+}
+
+
+/* ================= UNIR NOMBRES ================= */
+function gruposNombres(){
+  const P=Datos.base,contar=(lista,f)=>{const m={};lista.forEach(q=>{const k=f(q);m[k]=(m[k]||0)+1});return m};
+  const g=[{tipo:'curso',titulo:'Cursos',ctx:'',items:contar(P,q=>q.curso)},{tipo:'asignatura',titulo:'Asignaturas',ctx:'',items:contar(P,q=>q.asignatura)}];
+  const ca={};P.forEach(q=>{const k=q.curso+'||'+q.asignatura;(ca[k]=ca[k]||[]).push(q)});
+  Object.keys(ca).sort((x,y)=>x.localeCompare(y,'es',{numeric:true})).forEach(k=>{
+    const [c,a]=k.split('||');g.push({tipo:'tema',titulo:c+' · '+a,ctx:ctxTema(c,a),items:contar(ca[k],q=>q.tema)});
+  });
+  return g;
+}
+function paresParecidos(g){
+  const n=Object.keys(g.items),out=[];
+  for(let i=0;i<n.length;i++)for(let j=i+1;j<n.length;j++)if(parecido(n[i],n[j])>=.72){
+    const [de,a]=g.items[n[i]]>g.items[n[j]]?[n[j],n[i]]:[n[i],n[j]];out.push({g,de,a});
+  }
+  return out;
+}
+const TIPO_N={curso:'curso',asignatura:'asignatura',tema:'tema'};
+function filaNombre(g,n){
+  return '<div class="ses"><span>'+esc(n)+'<small>'+plural(g.items[n],'pregunta','preguntas')+'</small></span>'+
+    (Object.keys(g.items).length>1?'<button class="link" data-a="unirCon" data-t="'+g.tipo+'" data-ctx="'+esc(g.ctx)+'" data-de="'+esc(n)+'">Unir con…</button>':'')+'</div>';
+}
+function renderNombres(){
+  const G=gruposNombres(),pares=[].concat(...G.map(paresParecidos));
+  const lista=arr=>unicos(Object.keys(arr));
+  let h='<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
+    '<p class="eyebrow" style="margin-top:16px">Nombres</p><h1>Cursos, asignaturas y temas</h1>'+
+    '<p class="sub">Si algo aparece repetido porque se escribió de dos formas, únelo aquí. No se borra ninguna pregunta: solo pasan a estar juntas.</p>';
+  if(!CONFIG.servidor)h+=aviso('info','Para unir nombres hace falta el servidor.');
+  if(pares.length)h+='<section class="sec-block"><h2>Parecen repetidos</h2><div>'+pares.map(p=>
+    '<div class="ses"><span>«'+esc(p.de)+'» y «'+esc(p.a)+'»<small>'+(p.g.tipo==='tema'?'Tema de '+esc(p.g.titulo):p.g.tipo==='curso'?'Curso':'Asignatura')+'</small></span>'+
+    '<button class="link" data-a="unirPar" data-t="'+p.g.tipo+'" data-ctx="'+esc(p.g.ctx)+'" data-de="'+esc(p.de)+'" data-dest="'+esc(p.a)+'">Unir</button></div>').join('')+'</div></section>';
+  G.filter(g=>g.tipo!=='tema').forEach(g=>{h+='<section class="sec-block"><h2>'+g.titulo+'</h2><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div></section>'});
+  h+='<section class="sec-block"><h2>Temas</h2>'+G.filter(g=>g.tipo==='tema').map(g=>'<p class="res-t">'+esc(g.titulo)+'</p><div>'+lista(g.items).map(n=>filaNombre(g,n)).join('')+'</div>').join('')+'</section>';
+  if(Datos.alias.length)h+='<section class="sec-block"><h2>Uniones hechas</h2><div>'+Datos.alias.map(x=>
+    '<div class="ses"><span>«'+esc(x.original||x.de)+'» → «'+esc(x.a)+'»<small>'+(TIPO_N[x.tipo]||'')+'</small></span><button class="link" data-a="deshacerAlias" data-id="'+esc(x.id)+'">Deshacer</button></div>').join('')+'</div></section>';
+  app.innerHTML=h;
+}
+async function hacerUnion(tipo,ctx,de,a){
+  if(clave(de)===clave(a))return;
+  try{
+    await servidorPost({accion:'alias',tipo,de:ctx+clave(de),a,original:de});
+    await Datos.cargar();cerrarModal();renderNombres();toast('Unido: ahora todo está en «'+a+'».');
+  }catch(e){toast(/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido unir: '+e.message+'.')}
 }
 
 /* ---------- modal ---------- */
@@ -1031,14 +1185,31 @@ const A={
   impEditor:()=>{
     const r=E.rev;if(!r||!r.res)return;
     if(tieneContenido()&&!confirm('¿Pasar estas preguntas al editor? Se quitará del editor lo que hay ahora.'))return;
-    E.ed=edDesde(r.res.todas,nombreDe(r.res.ok,E.imp));guardarBorrador();ir('editor');
+    E.ed=edDesde(r.res.todas.map(r.mapear),nombreDe(r.lista,E.imp));guardarBorrador();ir('editor');
   },
   impProbar:()=>{
     const r=E.rev;if(!r||!r.res)return;
-    Datos.extra=r.res.ok.map(q=>Object.assign({},q,{archivo:'prueba'}));
-    const q=r.res.ok[0];if(q){E.filtro={curso:q.curso,asignatura:q.asignatura,tema:q.tema};ls.set(LS.filtro,E.filtro)}
+    Datos.extra=r.lista.map(q=>Object.assign({},q,{archivo:'prueba'}));
+    const q=r.lista[0];if(q){E.filtro={curso:q.curso,asignatura:q.asignatura,tema:q.tema};ls.set(LS.filtro,E.filtro)}
     ir('inicio');toast('Probando '+plural(Datos.extra.length,'pregunta','preguntas')+' sin subirlas.');
   },
+  usarNombre:el=>{const t=el.dataset.t;E.imp[t]=el.dataset.v;guardarImp();const inp=$('[data-imp="'+t+'"]');if(inp)inp.value=el.dataset.v;$('#prompt').value=promptTexto();sugerirNombre(t);if(t!=='tema')sugerirNombre('tema')},
+  nombres:()=>ir('nombres'),
+  unirPar:el=>{if(confirm('¿Unir «'+el.dataset.de+'» con «'+el.dataset.dest+'»? Sus preguntas pasarán a «'+el.dataset.dest+'».'))hacerUnion(el.dataset.t,el.dataset.ctx,el.dataset.de,el.dataset.dest)},
+  unirCon:el=>{
+    const g=gruposNombres().find(x=>x.tipo===el.dataset.t&&x.ctx===el.dataset.ctx);if(!g)return;
+    const otros=unicos(Object.keys(g.items)).filter(n=>n!==el.dataset.de);
+    E.union={tipo:g.tipo,ctx:g.ctx,de:el.dataset.de};
+    abrirModal('<p class="eyebrow">Unir</p><h1 id="mTit">«'+esc(el.dataset.de)+'»</h1><p>Elige con qué nombre se junta. Sus preguntas pasarán a ese nombre.</p>'+
+      '<div class="field"><label class="lbl-f" for="unirSel">Unir con</label><select class="in" id="unirSel">'+otros.map(n=>'<option>'+esc(n)+'</option>').join('')+'</select></div>'+
+      '<div class="stack"><button class="btn" data-a="confirmarUnion">Unir</button><button class="btn sec" data-a="cerrar">Cancelar</button></div>');
+  },
+  confirmarUnion:el=>{const u=E.union,v=$('#unirSel').value;if(!u||!v)return;conBoton(el,'Uniendo…',()=>hacerUnion(u.tipo,u.ctx,u.de,v))},
+  deshacerAlias:async el=>{
+    try{await servidorPost({accion:'quitarAlias',id:el.dataset.id});await Datos.cargar();renderNombres();toast('Unión deshecha.')}
+    catch(e){toast('No se ha podido deshacer: '+e.message+'.')}
+  },
+  decNombre:el=>{const r=E.rev;if(!r)return;r.dec[el.dataset.k]=el.dataset.v==='1';pintarRevision();const b=$('[data-a=decNombre][data-k="'+CSS.escape(el.dataset.k)+'"][data-v="'+el.dataset.v+'"]');if(b)b.focus({preventScroll:true})},
   quitarExtra:()=>{Datos.extra=[];PANT[E.pant]&&PANT[E.pant]();toast('Prueba terminada.')},
   editarArch:el=>abrirArchivo(el),
   retirar:el=>retirar(el),
@@ -1070,7 +1241,7 @@ document.addEventListener('input',e=>{
   if(E.pant==='importar'&&t.dataset.imp){
     E.imp[t.dataset.imp]=t.value;guardarImp();
     if(t.dataset.imp==='xml'){E.rev=null;const r=$('#rev');if(r)r.innerHTML=''}
-    else $('#prompt').value=promptTexto();
+    else{$('#prompt').value=promptTexto();sugerirNombre(t.dataset.imp);if(t.dataset.imp!=='tema')sugerirNombre('tema')}
     return;
   }
   if(E.pant!=='editor'||!E.ed)return;
