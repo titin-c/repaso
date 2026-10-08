@@ -209,6 +209,11 @@ textarea.in.pegar{min-height:180px;font-size:14px;font-family:ui-monospace,SFMon
 .zona-peligro{margin-top:32px;padding-top:20px;border-top:1px solid var(--line)}
 .btn.peligro{color:var(--err-ink);border-color:var(--err)}
 .btn.peligro .ic{color:var(--err)}
+.escrita{display:grid;gap:12px}
+.escrita .in{font-size:18px;height:56px}
+.escrita .in.ok{border-color:var(--ink);background:var(--surface)}
+.escrita .in.ko{border-color:var(--err);color:var(--err-ink)}
+.escrita .in:disabled{opacity:1;-webkit-text-fill-color:currentColor}
 .res-t{font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:24px 0 8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
@@ -297,6 +302,33 @@ function descargar(contenido,nombre,tipo){
   setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function aviso(tipo,html){return '<div class="aviso '+tipo+'" role="status">'+ic(tipo==='err'?'alert':'info')+'<div>'+html+'</div></div>'}
+const unicosOrden=a=>a.filter((x,i)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);
+/* Texto de la respuesta correcta, sea de opciones o escrita */
+const correctaDe=q=>q.tipo==='escrita'?(q.respuestas||[])[0]||'':q.opciones[q.correcta];
+
+/* ---------- respuesta escrita: ¿lo que ha escrito vale? ----------
+   No cuentan mayúsculas, espacios, signos ni artículos («la yegua» = «yegua»).
+   Los números se comparan como números («3», «3,0», «3.0»).
+   Si solo falla la tilde se da por buena, avisando. */
+const ARTICULOS=/^(el|la|los|las|un|una|unos|unas|lo)\s+/;
+function normEscrita(s,conTildes){
+  let t=norm(s).toLowerCase().replace(/^[¿¡"'«“\s]+|[.,;:!?"'»”\s]+$/g,'').replace(/\s+/g,' ');
+  if(!conTildes)t=t.normalize('NFD').replace(/[̀-̂̄-ͯ]/g,'').normalize('NFC');
+  return t.replace(ARTICULOS,'');
+}
+const comoNumero=s=>{const t=norm(s).replace(/\s/g,'').replace(',','.');return /^[-+]?\d+(\.\d+)?$/.test(t)?parseFloat(t):null};
+function evaluarEscrita(valor,respuestas){
+  const v=norm(valor);if(!v)return {ok:false};
+  const nv=comoNumero(v);
+  for(const r of respuestas){
+    const nr=comoNumero(r);
+    if(nv!==null&&nr!==null&&Math.abs(nv-nr)<1e-9)return {ok:true};
+    if(normEscrita(v,true)===normEscrita(r,true))return {ok:true};
+  }
+  for(const r of respuestas)if(normEscrita(v,false)===normEscrita(r,false))return {ok:true,tilde:r};
+  return {ok:false};
+}
+
 /* ---------- nombres: mismo curso/asignatura/tema aunque se escriban distinto ---------- */
 /* «Tema2: Biologia», «tema 2 - biología» y «Biologia» (valenciano) dan la misma clave */
 const clave=s=>norm(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'');
@@ -399,7 +431,7 @@ async function listarArchivos(){
 /* ---------- lectura y validación de XML ---------- */
 const SI=/^(si|sí|true|1|yes|correcta|x)$/i;
 const hijos=(n,nombres)=>Array.from(n.children).filter(c=>nombres.indexOf(c.localName.toLowerCase())>=0);
-const esVF=q=>q.opciones.length===2&&/^verdadero$/i.test(q.opciones[0])&&/^falso$/i.test(q.opciones[1]);
+const esVF=q=>q.tipo!=='escrita'&&q.opciones.length===2&&/^verdadero$/i.test(q.opciones[0])&&/^falso$/i.test(q.opciones[1]);
 /* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos */
 /* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos.
    Si la respuesta se cortó a medias (pasa con la versión gratis de ChatGPT), se queda con las
@@ -442,7 +474,13 @@ function leerPregunta(n){
   const resp=(n.getAttribute('respuesta')||'').trim().toLowerCase();
   if(!ops.length&&resp){const v=/^(v|verdadero|true|si|sí)/.test(resp);ops=[{t:'Verdadero',c:v},{t:'Falso',c:!v}]}
   const ex=hijos(n,['explicacion','explicación'])[0];
-  const q={id:norm(n.getAttribute('id')),curso,asignatura,tema,enunciado,opciones:ops.map(o=>o.t),correcta:ops.findIndex(o=>o.c),nCorrectas:ops.filter(o=>o.c).length,explicacion:ex?norm(ex.textContent):''};
+  /* respuesta escrita: una o varias <respuesta> con las formas válidas («3», «tres») */
+  const escritas=hijos(n,['respuesta']).map(r=>norm(r.textContent)).filter(Boolean);
+  const escrita=escritas.length>0||/^escrit/i.test(n.getAttribute('tipo')||'');
+  const q={id:norm(n.getAttribute('id')),curso,asignatura,tema,enunciado,
+    opciones:escrita?[]:ops.map(o=>o.t),correcta:escrita?-1:ops.findIndex(o=>o.c),nCorrectas:escrita?0:ops.filter(o=>o.c).length,
+    explicacion:ex?norm(ex.textContent):''};
+  if(escrita){q.tipo='escrita';q.respuestas=escritas}
   if(!q.id){q.id=idDe(q);q.idAuto=true}
   return q;
 }
@@ -453,12 +491,15 @@ function idDe(q){
 function errorDe(q){
   const falta=['curso','asignatura','tema','enunciado'].filter(k=>!norm(q[k]));
   if(falta.length)return 'falta '+falta.join(', ').replace('enunciado','la pregunta');
+  if(q.tipo==='escrita')return (q.respuestas||[]).some(r=>norm(r))?'':'falta la respuesta correcta';
   if(q.opciones.filter(o=>norm(o)).length<2)return 'necesita al menos 2 respuestas';
   if(q.nCorrectas>1)return 'tiene más de una respuesta marcada como correcta';
   if(q.correcta<0||!norm(q.opciones[q.correcta]))return 'no tiene marcada la respuesta correcta';
   return '';
 }
 function limpiar(q){
+  if(q.tipo==='escrita')return {id:q.id,idAuto:!!q.idAuto,tipo:'escrita',curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
+    opciones:[],correcta:-1,respuestas:unicosOrden((q.respuestas||[]).map(norm).filter(Boolean)),explicacion:norm(q.explicacion)};
   const keep=[];q.opciones.forEach((o,i)=>{if(norm(o))keep.push(i)});
   return {id:q.id,idAuto:!!q.idAuto,curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
     opciones:keep.map(i=>norm(q.opciones[i])),correcta:keep.indexOf(q.correcta),explicacion:norm(q.explicacion)};
@@ -489,6 +530,9 @@ function aXML(P){
         arbol[c][a][t].forEach(q=>{
           if(esVF(q)){
             out.push('        <pregunta id="'+x(q.id)+'" respuesta="'+(q.correcta===0?'verdadero':'falso')+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+          }else if(q.tipo==='escrita'){
+            out.push('        <pregunta id="'+x(q.id)+'" tipo="escrita">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+            q.respuestas.forEach(r=>out.push('          <respuesta>'+x(r)+'</respuesta>'));
           }else{
             out.push('        <pregunta id="'+x(q.id)+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
             q.opciones.forEach((o,i)=>out.push('          <opcion'+(i===q.correcta?' correcta="si"':'')+'>'+x(o)+'</opcion>'));
@@ -663,9 +707,16 @@ function renderPregunta(){
     '<div class="linea" aria-hidden="true"><i style="width:'+(s.i/n*100)+'%"></i></div><span class="qn" aria-label="Pregunta '+(s.i+1)+' de '+n+'">'+(s.i+1)+'/'+n+'</span></div>'+
     '<p class="eyebrow">'+esc(q.asignatura)+' · '+esc(q.tema)+'</p>'+
     '<p class="enun" id="enun">'+esc(q.enunciado)+'</p>'+
-    '<div class="opts" role="group" aria-labelledby="enun">'+orden.map((oi,k)=>'<button class="opt" data-o="'+oi+'"><span class="l">'+'ABCDEF'.charAt(k)+'</span><span>'+esc(q.opciones[oi])+'</span></button>').join('')+'</div>'+
+    (q.tipo==='escrita'
+      ?'<form class="escrita" id="fEsc" autocomplete="off"><label class="sr" for="rEsc">Tu respuesta</label>'+
+        '<input class="in" id="rEsc" placeholder="Escribe tu respuesta" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"'+
+        ((q.respuestas||[]).every(r=>comoNumero(r)!==null)?' inputmode="decimal"':'')+'>'+
+        '<button class="btn" type="submit">'+ic('check')+'Comprobar</button></form>'
+      :'<div class="opts" role="group" aria-labelledby="enun">'+orden.map((oi,k)=>'<button class="opt" data-o="'+oi+'"><span class="l">'+'ABCDEF'.charAt(k)+'</span><span>'+esc(q.opciones[oi])+'</span></button>').join('')+'</div>')+
     '<div id="fb" aria-live="polite"></div>';
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>responder(+b.dataset.o));
+  const f=$('#fEsc');
+  if(f){f.onsubmit=e=>{e.preventDefault();const v=$('#rEsc').value;if(!norm(v)){$('#rEsc').focus();return}responderEscrita(v)};try{$('#rEsc').focus({preventScroll:true})}catch(e){}}
   window.scrollTo(0,0);
 }
 const BIEN=['¡Correcto!','¡Muy bien!','¡Eso es!','¡Perfecto!','¡Genial!'];
@@ -678,10 +729,22 @@ function responder(oi){
     else if(o===oi){b.classList.add('ko');b.querySelector('.l').innerHTML=ic('x')}
     else b.classList.add('dim');
   });
+  feedback(s,q,ok,'');
+}
+/* Respuesta escrita */
+function responderEscrita(valor){
+  const s=E.sesion,q=s.preguntas[s.i].q;if(s.resp[s.i])return;
+  const r=evaluarEscrita(valor,q.respuestas||[]);
+  s.resp[s.i]={escrita:valor,ok:r.ok};
+  const inp=$('#rEsc');inp.disabled=true;inp.classList.add(r.ok?'ok':'ko');
+  const b=app.querySelector('#fEsc .btn');if(b)b.remove();
+  feedback(s,q,r.ok,r.tilde?'<p class="fb-r">Fíjate en la tilde: se escribe <b>'+esc(r.tilde)+'</b>.</p>':'');
+}
+function feedback(s,q,ok,extra){
   const ultima=s.i===s.preguntas.length-1;
   app.querySelector('.linea>i').style.width=((s.i+1)/s.preguntas.length*100)+'%';
-  $('#fb').innerHTML='<div class="fb'+(ok?'':' ko')+'"><div class="fb-t">'+ic(ok?'check':'x')+(ok?pick(BIEN):'No es correcta')+'</div>'+
-    (ok?'':'<p class="fb-r">La respuesta correcta es <b>'+esc(q.opciones[q.correcta])+'</b>.</p>')+
+  $('#fb').innerHTML='<div class="fb'+(ok?'':' ko')+'"><div class="fb-t">'+ic(ok?'check':'x')+(ok?pick(BIEN):'No es correcta')+'</div>'+extra+
+    (ok?'':'<p class="fb-r">La respuesta correcta es <b>'+esc(correctaDe(q))+'</b>.</p>')+
     (q.explicacion?'<p class="fb-x">'+esc(q.explicacion)+'</p>':'')+'</div>'+
     '<button class="btn" id="sig" style="margin-top:16px">'+(ultima?'Ver resultado':'Siguiente')+' '+ic('arrow')+'</button>';
   const sig=$('#sig');
@@ -710,7 +773,7 @@ function renderResultado(reg){
     '<p class="big">'+reg.aciertos+'/'+reg.total+'<small>'+p+'%</small></p>'+
     '<div class="linea" aria-hidden="true" style="margin-bottom:24px"><i style="width:'+p+'%"></i></div>'+
     '<h1>'+msg[0]+'</h1><p class="sub">'+msg[1]+'</p>'+
-    (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div></section>':'')+
+    (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(correctaDe(q))+'</span></div>').join('')+'</div></section>':'')+
     '<div class="stack">'+
       (fallos.length?'<button class="btn" id="rep">'+ic('repeat')+' Repetir los fallos ('+fallos.length+')</button>':'')+
       '<button class="btn'+(fallos.length?' sec':'')+'" id="otra">Otra ronda</button>'+
@@ -792,19 +855,40 @@ async function actualizar(){
 
 /* ================= AÑADIR PREGUNTAS CON IA ================= */
 function guardarImp(){ls.set(LS.imp,E.imp)}
+const TIPOS_IMP=[['test','Test'],['vf','Verdadero o falso'],['escrita','Respuesta escrita']];
+function tiposImp(){const t=(E.imp.tipos||[]).filter(x=>TIPOS_IMP.some(y=>y[0]===x));return t.length?t:['test','vf']}
 function promptTexto(){
-  const i=E.imp,c=norm(i.curso)||'[CURSO]',a=norm(i.asignatura)||'[ASIGNATURA]',t=norm(i.tema)||'[TEMA]';
+  const i=E.imp,c=norm(i.curso)||'[CURSO]',a=norm(i.asignatura)||'[ASIGNATURA]',t=norm(i.tema)||'[TEMA]',T=tiposImp();
+  const reglas=[],ejemplo=[];
+  if(T.indexOf('test')>=0){
+    reglas.push('- Preguntas tipo test: 4 opciones y solo UNA correcta. Las incorrectas deben ser creíbles.');
+    ejemplo.push('        <pregunta>','          <enunciado>Texto de la pregunta</enunciado>','          <opcion correcta="si">Respuesta correcta</opcion>',
+      '          <opcion>Respuesta incorrecta</opcion>','          <opcion>Respuesta incorrecta</opcion>','          <opcion>Respuesta incorrecta</opcion>',
+      '          <explicacion>Por qué es la correcta</explicacion>','        </pregunta>');
+  }
+  if(T.indexOf('vf')>=0){
+    reglas.push('- Preguntas de verdadero o falso: escribe respuesta="verdadero" o respuesta="falso".');
+    ejemplo.push('        <pregunta respuesta="verdadero">','          <enunciado>Una afirmación que sea verdadera o falsa</enunciado>',
+      '          <explicacion>Por qué</explicacion>','        </pregunta>');
+  }
+  if(T.indexOf('escrita')>=0){
+    reglas.push('- Preguntas de respuesta escrita: solo cuando la respuesta sea muy corta (una palabra o un número) y sin dudas. En <respuesta> pon la forma correcta y, en otras <respuesta>, las demás formas válidas (por ejemplo «3» y «tres»).');
+    ejemplo.push('        <pregunta tipo="escrita">','          <enunciado>¿Cuál es la raíz cuadrada de 9?</enunciado>','          <respuesta>3</respuesta>',
+      '          <respuesta>tres</respuesta>','          <explicacion>Porque 3 × 3 = 9</explicacion>','        </pregunta>');
+  }
+  const solo=T.length===1?'Todas las preguntas deben ser de este tipo:':'Mezcla estos tipos de pregunta:';
   return [
-'Actúa como profesor de '+a+' de '+c+'. Crea '+i.n+' preguntas tipo test para repasar el tema «'+t+'».',
+'Actúa como profesor de '+a+' de '+c+'. Crea '+i.n+' preguntas para repasar el tema «'+t+'».',
 '',
 'Escribe el curso, la asignatura y el tema EXACTAMENTE como aparecen aquí, sin traducirlos ni cambiarlos.',
 '',
 'Usa la información del material que te adjunto (fotos del libro o apuntes). Si no adjunto nada, usa lo que se estudia en '+c+' en ese tema.',
 '',
+solo
+].concat(reglas).concat(norm(i.extra)?['','Indicaciones importantes (cúmplelas siempre): '+norm(i.extra)]:[]).concat([
+'',
 'Reglas:',
 '- Lenguaje claro y adecuado a '+c+'.',
-'- Cada pregunta tiene 4 opciones y solo UNA correcta. Las incorrectas deben ser creíbles.',
-'- Incluye también algunas preguntas de verdadero o falso.',
 '- Cada pregunta lleva una explicación corta, de una frase.',
 '- Mezcla preguntas fáciles y difíciles, sin repetir ninguna.',
 '',
@@ -814,29 +898,18 @@ function promptTexto(){
 '<banco>',
 '  <curso nombre="'+c+'">',
 '    <asignatura nombre="'+a+'">',
-'      <tema nombre="'+t+'">',
-'        <pregunta>',
-'          <enunciado>Texto de la pregunta</enunciado>',
-'          <opcion correcta="si">Respuesta correcta</opcion>',
-'          <opcion>Respuesta incorrecta</opcion>',
-'          <opcion>Respuesta incorrecta</opcion>',
-'          <opcion>Respuesta incorrecta</opcion>',
-'          <explicacion>Por qué es la correcta</explicacion>',
-'        </pregunta>',
-'        <pregunta respuesta="verdadero">',
-'          <enunciado>Una afirmación que sea verdadera o falsa</enunciado>',
-'          <explicacion>Por qué</explicacion>',
-'        </pregunta>',
+'      <tema nombre="'+t+'">'
+]).concat(ejemplo).concat([
 '      </tema>',
 '    </asignatura>',
 '  </curso>',
 '</banco>',
 '',
-'En las de verdadero o falso escribe respuesta="verdadero" o respuesta="falso". No uses los símbolos < ni > dentro de los textos.',
+'No uses los símbolos < ni > dentro de los textos.',
 '',
 'Material del tema:',
 '[Adjunta aquí fotos de las páginas del libro o pega tus apuntes]'
-  ].join('\n');
+  ]).join('\n');
 }
 function renderImportar(){
   const i=E.imp,P=Datos.todas();
@@ -849,8 +922,12 @@ function renderImportar(){
       '<div class="field"><label class="lbl-f" for="iCurso">Curso</label><input class="in" id="iCurso" list="dl-c" data-imp="curso" value="'+esc(i.curso)+'" placeholder="Ej.: 5º Primaria"><p class="hint hint-nombre" id="hn-curso" aria-live="polite"></p></div>'+
       '<div class="field"><label class="lbl-f" for="iAsig">Asignatura</label><input class="in" id="iAsig" list="dl-a" data-imp="asignatura" value="'+esc(i.asignatura)+'" placeholder="Ej.: Ciencias Naturales"><p class="hint hint-nombre" id="hn-asignatura" aria-live="polite"></p></div>'+
       '<div class="field"><label class="lbl-f" for="iTema">Tema</label><input class="in" id="iTema" list="dl-t" data-imp="tema" value="'+esc(i.tema)+'" placeholder="Ej.: Tema 3: Las plantas"><p class="hint hint-nombre" id="hn-tema" aria-live="polite"></p></div>'+
+      '<div class="field"><span class="lbl-f" id="lblTi">Tipos de pregunta</span><div class="chips" role="group" aria-labelledby="lblTi">'+
+        TIPOS_IMP.map(([k,l])=>'<button class="chip" data-imptipo="'+k+'" aria-pressed="'+(tiposImp().indexOf(k)>=0)+'">'+l+'</button>').join('')+'</div>'+
+        '<p class="hint">Puedes marcar varios. La respuesta escrita va bien para preguntas fáciles: una palabra o un número.</p></div>'+
       '<div class="field"><span class="lbl-f" id="lblIn">Cuántas preguntas</span><div class="chips" role="group" aria-labelledby="lblIn">'+
         [10,15,20,30].map(n=>'<button class="chip" data-impn="'+n+'" aria-pressed="'+(i.n===n)+'">'+n+'</button>').join('')+'</div><p class="hint">Con la versión gratis de ChatGPT, mejor 10: si pides muchas, la respuesta se corta.</p></div>'+
+      '<div class="field"><label class="lbl-f" for="iExtra">Indicaciones extra (opcional)</label><textarea class="in short" id="iExtra" data-imp="extra" rows="2" placeholder="Ej.: solo problemas; solo números enteros; nada de fechas">'+esc(i.extra||'')+'</textarea></div>'+
     '</div></div>'+
     '<div class="paso"><span class="num">2</span><div><b>Copia este texto y pégalo en una IA</b><p>Sirve ChatGPT, Gemini o Claude. Después de pegarlo, adjunta fotos de las páginas del libro o tus apuntes y envíalo.</p>'+
       '<div class="field"><label class="sr" for="prompt">Texto para la IA</label><textarea class="in prompt" id="prompt" readonly>'+esc(promptTexto())+'</textarea></div>'+
@@ -949,7 +1026,7 @@ function pintarRevision(){
     (r.cortado?aviso('info','<b>La respuesta de la IA se cortó antes de terminar.</b> No pasa nada: se han aprovechado las '+plural(r.lista.length,'pregunta completa','preguntas completas')+(r.descartada?' y se ha quitado la última, que estaba a medias':'')+'. Si quieres más, pide otra tanda en la IA.'):'')+
     (r.lista.length?'<p>'+plural(r.lista.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
     (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
-    Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.opciones[q.correcta])+'</span></div>').join('')+'</div>').join('')+
+    Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.tipo==='escrita'?q.respuestas.join(' / '):correctaDe(q))+(q.tipo==='escrita'?' <small>(escrita)</small>':'')+'</span></div>').join('')+'</div>').join('')+
     '<div class="stack" style="margin-top:24px">'+
       (r.lista.length?'<button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Subir '+plural(r.lista.length,'pregunta','preguntas')+'</button>':'')+
       '<button class="btn sec" data-a="impEditor">'+ic('edit')+'Corregir en el editor</button>'+
@@ -1085,6 +1162,7 @@ function preguntaVacia(ed,base){return {id:nuevoId(),curso:ed?ed.curso:'',asigna
 function edNuevo(){const ed={nombre:'',curso:'',asignatura:'',mixto:false,subidaId:'',preguntas:[]};ed.preguntas.push(preguntaVacia(ed));return ed}
 function edDesde(todas,nombre,subidaId){
   const qs=todas.map(q=>{
+    if(q.tipo==='escrita')return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:'escrita',opciones:[],correcta:-1,respuestas:(q.respuestas&&q.respuestas.length?q.respuestas:['']).slice(),explicacion:q.explicacion||''};
     const vf=esVF(q),ops=q.opciones.slice();
     while(!vf&&ops.length<2)ops.push('');
     return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:vf?'vf':'opciones',opciones:ops,correcta:q.correcta,explicacion:q.explicacion||''};
@@ -1094,7 +1172,7 @@ function edDesde(todas,nombre,subidaId){
   if(!qs.length)qs.push(preguntaVacia(ed));
   return ed;
 }
-const esVacia=q=>!norm(q.enunciado)&&!norm(q.explicacion)&&(q.tipo==='vf'||!q.opciones.some(o=>norm(o)));
+const esVacia=q=>!norm(q.enunciado)&&!norm(q.explicacion)&&(q.tipo==='vf'||(q.tipo==='escrita'?!(q.respuestas||[]).some(r=>norm(r)):!q.opciones.some(o=>norm(o))));
 const tieneContenido=()=>E.ed&&E.ed.preguntas.some(q=>!esVacia(q));
 function nombreArchivo(){const ed=E.ed,p=[slug(ed.curso),slug(ed.asignatura)].filter(Boolean).join('_');return (p||'preguntas-nuevas')+'.xml'}
 function guardarBorrador(){ls.set(LS.borrador,E.ed)}
@@ -1106,7 +1184,13 @@ function refrescarPie(){
 function qHTML(q,i){
   const k0=(a,extra)=>' data-ed="'+a+'" data-q="'+i+'"'+(extra||'');
   let resp;
-  if(q.tipo==='vf'){
+  if(q.tipo==='escrita'){
+    const rs=q.respuestas&&q.respuestas.length?q.respuestas:[''];
+    resp=rs.map((r,k)=>'<div class="oprow"><input class="in" data-q="'+i+'" data-r="'+k+'" value="'+esc(r)+'" placeholder="'+(k?'Otra forma válida (opcional)':'Respuesta correcta')+'" aria-label="Pregunta '+(i+1)+', respuesta válida '+(k+1)+'" autocapitalize="off" autocorrect="off" spellcheck="false">'+
+      (rs.length>1?'<button class="del"'+k0('delr',' data-o="'+k+'"')+' aria-label="Quitar respuesta válida '+(k+1)+'">'+ic('x')+'</button>':'')+'</div>').join('')+
+      '<p class="hint">Se aceptan mayúsculas o minúsculas y sin artículo. Si vale de varias formas, añádelas (por ejemplo «3» y «tres»).</p>'+
+      (rs.length<6?'<button class="link"'+k0('addr')+'>'+ic('plus')+'Añadir otra forma válida</button>':'');
+  }else if(q.tipo==='vf'){
     resp='<div class="chips" role="group" aria-label="Respuesta correcta de la pregunta '+(i+1)+'">'+['Verdadero','Falso'].map((t,k)=>'<button class="chip"'+k0('vf',' data-o="'+k+'"')+' aria-pressed="'+(q.correcta===k)+'">'+t+'</button>').join('')+'</div><p class="hint">Marca cuál es la correcta.</p>';
   }else{
     resp=q.opciones.map((o,k)=>'<div class="oprow">'+
@@ -1122,8 +1206,9 @@ function qHTML(q,i){
     '<div class="field"><label class="lbl-f" for="t'+i+'">Tema</label><input class="in" id="t'+i+'" list="dl-t" data-q="'+i+'" data-f="tema" value="'+esc(q.tema)+'" placeholder="Ej.: Tema 3: Las plantas"></div>'+
     '<div class="field"><label class="lbl-f" for="e'+i+'">Pregunta</label><textarea class="in" id="e'+i+'" data-q="'+i+'" data-f="enunciado" rows="2">'+esc(q.enunciado)+'</textarea></div>'+
     '<div class="field"><span class="lbl-f">Tipo</span><div class="chips" role="group" aria-label="Tipo de pregunta '+(i+1)+'">'+
-      '<button class="chip"'+k0('tipo',' data-v="opciones"')+' aria-pressed="'+(q.tipo!=='vf')+'">Varias respuestas</button>'+
-      '<button class="chip"'+k0('tipo',' data-v="vf"')+' aria-pressed="'+(q.tipo==='vf')+'">Verdadero o falso</button></div></div>'+
+      '<button class="chip"'+k0('tipo',' data-v="opciones"')+' aria-pressed="'+(q.tipo==='opciones')+'">Test</button>'+
+      '<button class="chip"'+k0('tipo',' data-v="vf"')+' aria-pressed="'+(q.tipo==='vf')+'">Verdadero o falso</button>'+
+      '<button class="chip"'+k0('tipo',' data-v="escrita"')+' aria-pressed="'+(q.tipo==='escrita')+'">Escrita</button></div></div>'+
     '<div class="field"><span class="lbl-f">Respuestas</span>'+resp+'</div>'+
     '<div class="field"><label class="lbl-f" for="x'+i+'">Explicación (opcional)</label><textarea class="in short" id="x'+i+'" data-q="'+i+'" data-f="explicacion" rows="2" placeholder="Se muestra después de responder">'+esc(q.explicacion)+'</textarea></div>'+
   '</section>';
@@ -1199,9 +1284,13 @@ function accionEditor(b){
     case 'ok':case 'vf':q.correcta=k;break;
     case 'tipo':
       if(b.dataset.v===q.tipo)return;
-      if(b.dataset.v==='vf'){q._ops=q.opciones;q._c=q.correcta;q.opciones=['Verdadero','Falso'];q.correcta=-1}
+      if(q.tipo==='opciones'){q._ops=q.opciones;q._c=q.correcta}
+      if(b.dataset.v==='vf'){q.opciones=['Verdadero','Falso'];q.correcta=-1}
+      else if(b.dataset.v==='escrita'){q.opciones=[];q.correcta=-1;if(!q.respuestas||!q.respuestas.length)q.respuestas=['']}
       else{q.opciones=q._ops||['','','',''];q.correcta=q._c!=null?q._c:-1}
       q.tipo=b.dataset.v;break;
+    case 'addr':q.respuestas.push('');foco='input[data-q="'+i+'"][data-r="'+(q.respuestas.length-1)+'"]';break;
+    case 'delr':q.respuestas.splice(k,1);break;
   }
   guardarBorrador();
   const sel='[data-ed="'+a+'"][data-q="'+i+'"]'+(b.dataset.o!=null?'[data-o="'+k+'"]':'')+(b.dataset.v?'[data-v="'+b.dataset.v+'"]':'');
@@ -1307,6 +1396,14 @@ const A={
 document.addEventListener('click',e=>{
   const ed=e.target.closest('[data-ed]');
   if(ed&&E.pant==='editor'){accionEditor(ed);return}
+  const tp=e.target.closest('[data-imptipo]');
+  if(tp&&E.pant==='importar'){
+    let T=tiposImp().slice();const k=tp.dataset.imptipo,x=T.indexOf(k);
+    if(x>=0){if(T.length===1){toast('Elige al menos un tipo.');return}T.splice(x,1)}else T.push(k);
+    E.imp.tipos=TIPOS_IMP.map(y=>y[0]).filter(y=>T.indexOf(y)>=0);guardarImp();
+    app.querySelectorAll('[data-imptipo]').forEach(b=>b.setAttribute('aria-pressed',String(E.imp.tipos.indexOf(b.dataset.imptipo)>=0)));
+    $('#prompt').value=promptTexto();return;
+  }
   const n=e.target.closest('[data-impn]');
   if(n&&E.pant==='importar'){
     E.imp.n=+n.dataset.impn;guardarImp();
@@ -1326,12 +1423,13 @@ document.addEventListener('input',e=>{
   if(E.pant==='importar'&&t.dataset.imp){
     E.imp[t.dataset.imp]=t.value;guardarImp();
     if(t.dataset.imp==='xml'){E.rev=null;const r=$('#rev');if(r)r.innerHTML=''}
-    else{$('#prompt').value=promptTexto();sugerirNombre(t.dataset.imp);if(t.dataset.imp!=='tema')sugerirNombre('tema')}
+    else{$('#prompt').value=promptTexto();if(t.dataset.imp!=='extra'){sugerirNombre(t.dataset.imp);if(t.dataset.imp!=='tema')sugerirNombre('tema')}}
     return;
   }
   if(E.pant!=='editor'||!E.ed)return;
   const ed=E.ed;
-  if(t.dataset.q!=null&&t.dataset.o!=null)ed.preguntas[+t.dataset.q].opciones[+t.dataset.o]=t.value;
+  if(t.dataset.q!=null&&t.dataset.r!=null)ed.preguntas[+t.dataset.q].respuestas[+t.dataset.r]=t.value;
+  else if(t.dataset.q!=null&&t.dataset.o!=null)ed.preguntas[+t.dataset.q].opciones[+t.dataset.o]=t.value;
   else if(t.dataset.q!=null&&t.dataset.f)ed.preguntas[+t.dataset.q][t.dataset.f]=t.value;
   else if(t.dataset.f){
     ed[t.dataset.f]=t.value;
