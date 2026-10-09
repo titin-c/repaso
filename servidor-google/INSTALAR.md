@@ -34,3 +34,10 @@ El servidor es gratuito y funciona con tu cuenta de Google. Guarda en una hoja d
 - **Sin contraseña significa que cualquiera con el enlace puede subir preguntas.** Para un quiz familiar el riesgo es bajo. Si algún día aparece algo raro, se quita desde la app o desde la hoja.
 - **Si cambias `Codigo.gs`:** usa **Implementar → Gestionar implementaciones → editar → Nueva versión**. Así la URL no cambia.
 - **Los resultados** de todos los dispositivos (iPhone, iPad, ordenador) se juntan en la hoja *Resultados*, y la página *Progreso* los muestra todos.
+
+## Logros y premios
+
+- **PIN de los padres:** al principio de `Codigo.gs` está `var PIN_PADRES = '1234';`. Cámbialo por el tuyo antes de publicar la nueva versión. Solo con ese PIN se puede confirmar o rechazar un premio pedido.
+- **Hoja «Premios»:** se crea sola la primera vez que se abre la app, ya con la lista inicial. Puedes cambiar el nombre o los puntos, añadir filas nuevas (con un `id` cualquiera, sin repetir) o poner `no` en la columna `activo` para ocultar un premio.
+- **Hoja «Canjes»:** cada premio pedido. `pendiente` → lo confirmas tú en la app (Logros → Premios → Confirmar) y pasa a `entregado` o `rechazado` (si se rechaza, los puntos vuelven).
+- Las medallas, la racha y los puntos se calculan en la app a partir de las rondas: no hay que tocar nada.

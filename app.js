@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='5';
+const VERSION='6';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -361,7 +361,7 @@ function aXML(P){
 
 /* ---------- datos ---------- */
 const Datos={
-  base:[],extra:[],archivos:[],subidas:[],resSrv:[],alias:[],fecha:null,estado:'cargando',servidorOk:false,
+  base:[],extra:[],archivos:[],subidas:[],resSrv:[],alias:[],premios:[],canjes:[],fecha:null,estado:'cargando',servidorOk:false,
   async cargar(forzar){
     this.estado='cargando';
     const cache=ls.get(LS.cache,null)||{};
@@ -383,7 +383,8 @@ const Datos={
     const enLinea=!!(lista||srv);
     const c={fecha:enLinea?new Date().toISOString():cache.fecha,archivos,
       subidas:srv?srv.subidas||[]:cache.subidas||[],resSrv:srv?srv.resultados||[]:cache.resSrv||[],
-      alias:srv?srv.alias||[]:cache.alias||[]};
+      alias:srv?srv.alias||[]:cache.alias||[],
+      premios:srv?srv.premios||[]:cache.premios||[],canjes:srv?srv.canjes||[]:cache.canjes||[]};
     if(enLinea)ls.set(LS.cache,c);
     this.usar(c);
     this.servidorOk=!!srv;
@@ -392,6 +393,7 @@ const Datos={
   },
   usar(c){
     this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];this.alias=c.alias||[];
+    this.premios=(c.premios||[]).map(p=>({id:String(p.id),nombre:norm(p.nombre),puntos:Math.round(+p.puntos||0)}));this.canjes=c.canjes||[];
     this.subidas=(c.subidas||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(s=>{
       let r;try{r=parsearXML(arreglarXML(s.xml),s.nombre)}catch(e){r={ok:[],errores:[e.message],todas:[]}}
       return {id:s.id,nombre:s.nombre||'Sin nombre',fecha:s.fecha,preguntas:r.ok,errores:r.errores,todas:r.todas};
@@ -447,7 +449,7 @@ function ocupado(btn,p,texto){
 }
 function conBoton(btn,texto,fn){return ocupado(btn,fn(),texto.replace(/…$/,''))}
 const OCUPADO={actualizar:'Actualizando',subirImp:'Guardando',guardarNombre:'Guardando',unirFicha:'Uniendo',eliminarFicha:'Eliminando',
-  unirPar:'Uniendo',retirarEd:'Quitando',pegarResp:'Pegando',
+  unirPar:'Uniendo',canjear:'Pidiendo',resolverCanje:'Guardando',retirarEd:'Quitando',pegarResp:'Pegando',
   deshacerAlias:el=>/recuperar/i.test(el.textContent)?'Recuperando':'Deshaciendo'};
 const etiquetaOcupado=(a,el)=>typeof OCUPADO[a]==='function'?OCUPADO[a](el):(OCUPADO[a]||'Un momento');
 /* Barra fina bajo la cabecera mientras se habla con el servidor */
@@ -459,9 +461,9 @@ const splash=(peq)=>'<div class="splash'+(peq?' peq':'')+'" role="status">'+(peq
   '<div class="linea carga-linea" aria-hidden="true"><i></i></div><p class="splash-t">Cargando…</p><p class="splash-f">'+FRASE+'</p></div>';
 
 /* ---------- estado y navegación ---------- */
-const E={soloFallos:ls.get('repaso.soloFallos.v1',false),pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
+const E={mes:0,soloFallos:ls.get('repaso.soloFallos.v1',false),pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
   imp:Object.assign(ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),{extra:''}),rev:null};
-const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres(),nombre:()=>renderNombre()};
+const PANT={inicio:()=>renderInicio(),logros:()=>renderLogros(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres(),nombre:()=>renderNombre()};
 function ir(p){
   E.pant=p;E.sesion=null;PANT[p]();
   document.querySelectorAll('.nav [data-a]').forEach(b=>{
@@ -502,6 +504,7 @@ function renderInicio(){
     lista.map(v=>'<option value="'+esc(v)+'"'+(v===val?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select></div>';
   app.innerHTML=avisoConexion()+
     (Datos.extra.length?aviso('info','Estás probando '+plural(Datos.extra.length,'pregunta nueva','preguntas nuevas')+' que aún no están subidas. <button class="link" data-a="quitarExtra">Dejar de probar</button>'):'')+
+    bannerHoy()+
     '<p class="eyebrow">Hola, Pepa</p><h1>¿Qué repasamos hoy?</h1><p class="sub">Elige un tema o déjalo todo en «Todos» para mezclar.</p>'+
     '<div class="box">'+
       sel('fCurso','Curso','Todos los cursos',L.cursos,f.curso)+
@@ -609,11 +612,14 @@ function terminar(){
     curso:f.curso===TODOS?null:f.curso,asignatura:f.asignatura===TODOS?null:f.asignatura,tema:f.tema===TODOS?null:f.tema,
     total,aciertos,
     detalle:s.preguntas.map(({q},i)=>({id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,ok:!!(s.resp[i]&&s.resp[i].ok)}))};
+  const antes=calcularLogros();
   Datos.guardarResultado(reg);
+  const L=calcularLogros(),nv=novedades(antes,L);
   E.pant='resultado';
-  renderResultado(reg);
+  renderResultado(reg,nv,L);
+  modalLogros(nv,L);
 }
-function renderResultado(reg){
+function renderResultado(reg,nv,L){
   const s=E.sesion,p=pct(reg.aciertos,reg.total);
   const msg=p>=90?['Lo tienes dominado','Sigue así.']:p>=70?['Muy bien','Ya casi lo tienes.']:p>=50?['Buen trabajo','Vas por buen camino.']:['Sigue practicando','Repasa los fallos y vuelve a intentarlo.'];
   const fallos=s.preguntas.filter((_,i)=>!(s.resp[i]&&s.resp[i].ok)).map(it=>it.q);
@@ -622,6 +628,7 @@ function renderResultado(reg){
     '<p class="big">'+reg.aciertos+'/'+reg.total+'<small>'+p+'%</small></p>'+
     '<div class="linea" aria-hidden="true" style="margin-bottom:24px"><i style="width:'+p+'%"></i></div>'+
     '<h1>'+msg[0]+'</h1><p class="sub">'+msg[1]+'</p>'+
+    celebracion(nv,L)+
     (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(correctaDe(q))+'</span>'+(q.explicacion?'<span class="fallo-x">'+esc(q.explicacion)+'</span>':'')+'</div>').join('')+'</div></section>':'')+
     '<div class="stack">'+
       (fallos.length?'<button class="btn" id="rep">'+ic('repeat')+' Repetir los fallos ('+fallos.length+')</button>':'')+
@@ -659,6 +666,239 @@ function renderProgreso(){
       const que=[r.asignatura,r.tema].filter(Boolean).join(' · ')||'Todo mezclado';
       return '<div class="ses"><span>'+esc(que)+'<small>'+fechaHora(r.fecha)+'</small></span><span>'+r.aciertos+'/'+r.total+'</span></div>';
     }).join('')+'</div></section>';
+}
+
+/* ================= LOGROS: días, rachas, medallas, puntos y premios =================
+   Todo se calcula a partir de las rondas guardadas (de todos los dispositivos), así sale igual en el iPhone y en el iPad.
+   · Un día cuenta cuando ese día se han respondido META.preguntas y acertado META.aciertos (en una o varias rondas).
+     Si falla más, solo tiene que seguir jugando: en cuanto llega a los aciertos, el día cuenta.
+   · Racha = días seguidos que cuentan. Si hoy aún no ha llegado, la racha sigue viva hasta medianoche.
+   · Medallas: rachas de días, cada 7/15/30 días hechos (aunque no sean seguidos), aciertos seguidos y fallos recuperados.
+   · Puntos: 10 por acierto, +5 si acierta una que había fallado, +50 por día hecho y un extra por cada medalla. */
+const META=Object.assign({preguntas:15,aciertos:11},CONFIG.meta||{});
+const PUNTOS={acierto:10,recuperada:5,dia:50};
+const MEDALLAS=[
+  {id:'primera',grupo:'otras',ic:'medal',nombre:'Primera ronda',txt:'Termina tu primera ronda',pts:20,v:L=>L.rondas,meta:1},
+  ...[[3,50],[7,150],[15,300],[30,600],[60,1000],[100,2000]].map(([n,p])=>({id:'racha'+n,grupo:'racha',ic:'flame',nombre:n+' días seguidos',txt:'Haz '+n+' días seguidos',pts:p,v:L=>L.mejorRacha,meta:n})),
+  {id:'semana',grupo:'dias',ic:'calendar',nombre:'Semana',txt:'Cada 7 días hechos',pts:100,v:L=>L.diasHechos,cada:7},
+  {id:'quincena',grupo:'dias',ic:'calendar',nombre:'Quincena',txt:'Cada 15 días hechos',pts:200,v:L=>L.diasHechos,cada:15},
+  {id:'mes',grupo:'dias',ic:'calendar',nombre:'Mes',txt:'Cada 30 días hechos',pts:500,v:L=>L.diasHechos,cada:30},
+  ...[[10,50],[25,150],[50,300],[100,600]].map(([n,p])=>({id:'combo'+n,grupo:'combo',ic:'bolt',nombre:n+' aciertos seguidos',txt:'Acierta '+n+' seguidas sin fallar',pts:p,v:L=>L.mejorCombo,meta:n})),
+  ...[[50,500],[100,1000],[200,2000],[365,4000]].map(([n,p])=>({id:'total'+n,grupo:'dias',ic:'calendar',nombre:n+' días hechos',txt:'Completa '+n+' días en total',pts:p,v:L=>L.diasHechos,meta:n})),
+  ...[[30,'Un mes jugando',200],[182,'Medio año jugando',1000],[365,'Un año jugando',3000]].map(([n,t,p])=>({id:'tiempo'+n,grupo:'tiempo',ic:'star',nombre:t,txt:'Sigue jugando '+(n===30?'un mes':n===182?'medio año':'un año')+' desde tu primera ronda',pts:p,v:L=>L.antiguedad,meta:n})),
+  {id:'errores10',grupo:'otras',ic:'repeat',nombre:'Aprendo de mis fallos',txt:'Acierta 10 que habías fallado',pts:100,v:L=>L.recuperadas,meta:10},
+  {id:'errores50',grupo:'otras',ic:'repeat',nombre:'Ya no se me escapan',txt:'Acierta 50 que habías fallado',pts:300,v:L=>L.recuperadas,meta:50}
+];
+/* Lista inicial de premios. Los de verdad se cambian en la hoja «Premios» del servidor. */
+const PREMIOS_BASE=[
+  ['postre','Elegir el postre o la cena',400],['peli','Elegir la película familiar',400],['pantalla','30 minutos extra de pantalla',500],
+  ['tarea','Librarte de una tarea de casa',600],['plan','Plan especial con papá o mamá',1500],['merienda','Merendar fuera',1800],
+  ['amiga','Invitar a una amiga a casa o a dormir',2000],['libro','Un libro o cómic que elijas',2000],['cine','Entrada de cine con una amiga',5000],
+  ['capricho','Un capricho que elijas',6000],['actividad','Una actividad: escape room, patinaje…',7000]
+].map(([id,nombre,puntos])=>({id,nombre,puntos}));
+
+const diaClave=d=>{d=d instanceof Date?d:new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const sumarDias=(k,n)=>{const p=k.split('-').map(Number);return diaClave(new Date(p[0],p[1]-1,p[2]+n))};
+const vecesMedalla=(m,L)=>m.cada?Math.floor(m.v(L)/m.cada):(m.v(L)>=m.meta?1:0);
+
+function calcularLogros(R,ahora){
+  R=R||Datos.resultados();ahora=ahora||new Date();
+  const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora)};
+  const ult=new Map();
+  R.forEach(r=>{
+    const k=diaClave(r.fecha),d=L.dias[k]||(L.dias[k]={n:0,ok:0,hecho:false});
+    const det=(r.detalle&&r.detalle.length)?r.detalle:null;
+    if(det)det.forEach(x=>{
+      d.n++;
+      if(x.ok){
+        d.ok++;L.puntosRespuestas+=PUNTOS.acierto;L.combo++;
+        if(ult.get(x.id)===false){L.recuperadas++;L.puntosRespuestas+=PUNTOS.recuperada}
+      }else L.combo=0;
+      if(L.combo>L.mejorCombo)L.mejorCombo=L.combo;
+      if(x.id)ult.set(x.id,!!x.ok);
+    });
+    else{d.n+=r.total||0;d.ok+=r.aciertos||0}
+    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos)d.hecho=true;
+  });
+  const hechos=Object.keys(L.dias).filter(k=>L.dias[k].hecho).sort();
+  L.diasHechos=hechos.length;
+  /* días desde la primera ronda hasta la última */
+  L.antiguedad=R.length?Math.round((new Date(diaClave(R[R.length-1].fecha)+'T12:00')-new Date(diaClave(R[0].fecha)+'T12:00'))/864e5):0;
+  /* mejor racha */
+  let run=0,prev=null;
+  hechos.forEach(k=>{run=(prev&&sumarDias(prev,1)===k)?run+1:1;if(run>L.mejorRacha)L.mejorRacha=run;prev=k});
+  /* racha actual: termina hoy o, si hoy aún no está hecho, ayer */
+  const hecho=k=>!!(L.dias[k]&&L.dias[k].hecho);
+  let k=hecho(L.hoy)?L.hoy:sumarDias(L.hoy,-1);
+  while(hecho(k)){L.racha++;k=sumarDias(k,-1)}
+  const h=L.dias[L.hoy]||{n:0,ok:0,hecho:false};
+  L.hoyN=h.n;L.hoyOk=h.ok;L.hoyHecho=h.hecho;
+  L.faltanN=Math.max(0,META.preguntas-h.n);L.faltanOk=Math.max(0,META.aciertos-h.ok);
+  L.enRiesgo=L.racha>0&&!h.hecho;
+  /* medallas y puntos */
+  L.medallas=MEDALLAS.map(m=>({m,veces:vecesMedalla(m,L),valor:m.v(L)}));
+  L.puntos=L.puntosRespuestas+L.diasHechos*PUNTOS.dia+L.medallas.reduce((s,x)=>s+x.veces*x.m.pts,0);
+  const gastado=(Datos.canjes||[]).filter(c=>c.estado!=='rechazado').reduce((s,c)=>s+(+c.puntos||0),0);
+  L.gastado=gastado;L.saldo=L.puntos-gastado;
+  return L;
+}
+/* Qué ha cambiado con la última ronda (para celebrarlo en el resultado) */
+function novedades(antes,despues){
+  return {
+    puntos:despues.puntos-antes.puntos,
+    diaHecho:!antes.hoyHecho&&despues.hoyHecho,
+    racha:despues.racha>antes.racha?despues.racha:0,
+    record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
+    combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
+    medallas:despues.medallas.filter((x,i)=>x.veces>antes.medallas[i].veces).map(x=>x.m)
+  };
+}
+const quePasa=L=>L.hoyHecho?'Día completado':
+  'Te faltan '+[L.faltanN?plural(L.faltanN,'pregunta','preguntas'):'',L.faltanOk?plural(L.faltanOk,'acierto','aciertos'):''].filter(Boolean).join(' y ');
+function progresoHoy(L){
+  const p=L.hoyHecho?100:Math.min(pct(L.hoyN,META.preguntas),pct(L.hoyOk,META.aciertos));
+  return '<div class="hoy-l"><div class="linea" aria-hidden="true"><i style="width:'+p+'%"></i></div>'+
+    '<p class="hoy-n"><span><b>'+Math.min(L.hoyN,99)+'</b>/'+META.preguntas+' preguntas</span><span><b>'+L.hoyOk+'</b>/'+META.aciertos+' aciertos</span></p></div>';
+}
+/* Recuadro de «hoy» en el inicio. Por la tarde avisa si la racha está en peligro. */
+function bannerHoy(){
+  if(!Datos.resultados().length)return '';
+  const L=calcularLogros(),tarde=new Date().getHours()>=18;
+  const aviso=L.enRiesgo&&tarde
+    ?'<p class="hoy-aviso">'+ic('alert')+'<span>Tu racha de '+plural(L.racha,'día','días')+' se pierde a medianoche. '+quePasa(L)+'.</span></p>':'';
+  return '<button class="hoy'+(aviso?' riesgo':'')+'" data-a="logros" aria-label="Hoy: '+esc(quePasa(L))+'. Ver mis logros">'+
+    '<span class="hoy-c"><span class="hoy-t">'+ic(L.hoyHecho?'check':'calendar')+(L.hoyHecho?'Día completado':'Hoy')+'</span>'+
+    '<span class="hoy-k">'+ic('flame')+L.racha+'<span class="sep"></span>'+ic('medal')+L.saldo.toLocaleString('es-ES')+'</span></span>'+
+    progresoHoy(L)+aviso+'</button>';
+}
+/* Bloque de celebración en la pantalla de resultado */
+function celebracion(nv,L){
+  if(!nv)return '';
+  let h='<section class="logro-res">';
+  h+='<p class="pts-gan">+'+nv.puntos.toLocaleString('es-ES')+'<small>puntos</small></p>';
+  if(nv.diaHecho)h+='<p class="logro-l">'+ic('check')+'<span><b>¡Día completado!</b> Racha de '+plural(L.racha,'día','días')+'.</span></p>';
+  else if(!L.hoyHecho)h+='<p class="logro-l">'+ic('calendar')+'<span>Hoy: '+esc(quePasa(L))+' para que el día cuente.</span></p>';
+  nv.medallas.forEach(m=>{h+='<p class="logro-l nueva">'+ic(m.ic)+'<span><b>Nueva medalla: '+esc(m.nombre)+'</b> +'+m.pts+' puntos</span></p>'});
+  return h+'<button class="link" data-a="logros">Ver mis logros '+ic('arrow')+'</button></section>';
+}
+
+/* Modal de felicitación: cada logro (un día más de racha, un récord, una medalla…) se celebra y anima a seguir */
+const ANIMO=['¡Sigue así!','Cada día cuenta. ¡Mañana más!','Lo estás haciendo genial.','La constancia es tu superpoder.','¡A por la siguiente!'];
+function logrosDe(nv,L){
+  const out=[];
+  if(nv.diaHecho)out.push({ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
+  if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
+  if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
+  nv.medallas.forEach(m=>out.push({ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
+  return out;
+}
+function hazaña(m,L){
+  const n=m.meta;
+  return {racha:'Has repasado '+n+' días seguidos.',combo:'Has acertado '+n+' preguntas seguidas sin fallar.',tiempo:'Llevas '+m.nombre.replace(/ jugando$/,'').toLowerCase()+' repasando con rePEPAso.'}[m.grupo]||
+    (m.cada?'Ya llevas '+plural(L.diasHechos,'día completado','días completados')+'.':m.id==='primera'?'Has terminado tu primera ronda.':
+     m.grupo==='dias'?'Has completado '+n+' días.':'Has acertado '+n+' preguntas que antes habías fallado.');
+}
+function modalLogros(nv,L){
+  const lista=logrosDe(nv,L);if(!lista.length)return;
+  const hay=lista.some(x=>x.med);
+  const top=lista.find(x=>x.med)||lista[0];
+  abrirModal('<div class="felic"><div class="felic-ic">'+ic(top.ic)+'</div>'+
+    '<p class="eyebrow">'+(hay?'Nueva medalla':'Nuevo logro')+'</p><h2 id="mTit">'+esc(lista.length===1?lista[0].t:'¡'+lista.length+' logros a la vez!')+'</h2>'+
+    '<div class="felic-l">'+lista.map(x=>'<div>'+ic(x.ic)+'<span><b>'+esc(x.t)+'</b>'+esc(x.x)+'</span></div>').join('')+'</div>'+
+    '<p class="felic-a">'+esc(pick(ANIMO))+'</p>'+
+    '<p class="pts-gan">+'+nv.puntos.toLocaleString('es-ES')+'<small>puntos esta ronda · tienes '+L.saldo.toLocaleString('es-ES')+'</small></p>'+
+    '<button class="btn" data-a="cerrar">¡Seguir!</button></div>');
+}
+
+/* ---------- pantalla Logros ---------- */
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function calendario(L){
+  const hoy=new Date(),base=new Date(hoy.getFullYear(),hoy.getMonth()+(E.mes||0),1);
+  const y=base.getFullYear(),m=base.getMonth(),dias=new Date(y,m+1,0).getDate(),hueco=(base.getDay()+6)%7;
+  let celdas='';
+  for(let i=0;i<hueco;i++)celdas+='<span class="cal-d vacio"></span>';
+  let hechosMes=0;
+  for(let d=1;d<=dias;d++){
+    const k=diaClave(new Date(y,m,d)),x=L.dias[k],cls=x?(x.hecho?' hecho':' jugado'):'';
+    if(x&&x.hecho)hechosMes++;
+    const est=x?(x.hecho?'día completado':'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)'):'';
+    celdas+='<span class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" role="img" aria-label="'+d+' de '+MESES[m]+(k===L.hoy?', hoy':'')+(est?', '+est:'')+'">'+d+'</span>';
+  }
+  return '<section class="sec-block"><div class="head-row cal-h"><button class="icbtn" data-a="mesAnt" aria-label="Mes anterior">'+ic('back')+'</button>'+
+    '<h2 aria-live="polite">'+MESES[m]+' '+y+'</h2>'+
+    '<button class="icbtn" data-a="mesSig" aria-label="Mes siguiente"'+((E.mes||0)>=0?' disabled':'')+'>'+ic('arrow')+'</button></div>'+
+    '<div class="cal" role="group" aria-label="Días de '+MESES[m]+'">'+['L','M','X','J','V','S','D'].map(x=>'<span class="cal-s" aria-hidden="true">'+x+'</span>').join('')+celdas+'</div>'+
+    '<p class="cal-ley"><span><i class="cal-m hecho"></i>Completado</span><span><i class="cal-m jugado"></i>Jugado</span><span>'+plural(hechosMes,'día este mes','días este mes')+'</span></p></section>';
+}
+function medallasHTML(L){
+  const fila=x=>{
+    const m=x.m,ok=x.veces>0;
+    const sig=m.cada?(m.cada-(x.valor%m.cada)):Math.max(0,m.meta-x.valor);
+    const det=m.cada?(ok?'×'+x.veces+' · próxima en '+plural(sig,'día','días'):'Faltan '+plural(sig,'día','días')):
+      ok?'+'+m.pts+' puntos':(m.grupo==='otras'&&m.id==='primera'?m.txt:'Llevas '+Math.min(x.valor,m.meta)+' de '+m.meta);
+    return '<div class="med'+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b><small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
+  };
+  const grupos=[['dias','Días hechos'],['racha','Días seguidos'],['combo','Aciertos seguidos'],['tiempo','Tiempo jugando'],['otras','Otras']];
+  return '<section class="sec-block"><h2>Medallas</h2>'+grupos.map(([g,t])=>'<p class="res-t">'+t+'</p><div class="meds">'+L.medallas.filter(x=>x.m.grupo===g).map(fila).join('')+'</div>').join('')+'</section>';
+}
+function premios(){return (Datos.premios&&Datos.premios.length?Datos.premios:PREMIOS_BASE).filter(p=>p.nombre&&+p.puntos>0).slice().sort((a,b)=>a.puntos-b.puntos)}
+function premiosHTML(L){
+  const C=(Datos.canjes||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const pend=C.filter(c=>c.estado==='pendiente'),hechos=C.filter(c=>c.estado==='entregado');
+  let h='<section class="sec-block" id="premios"><h2>Premios</h2>'+
+    '<p class="saldo"><b>'+L.saldo.toLocaleString('es-ES')+'</b> puntos para canjear</p>';
+  if(pend.length)h+='<p class="res-t">Esperando a papá o mamá</p><div>'+pend.map(c=>
+    '<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.fecha)+' · '+(+c.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
+    '<button class="link" data-a="confirmarCanje" data-id="'+esc(c.id)+'">Confirmar</button></div>').join('')+'</div>';
+  h+='<p class="res-t">Elige un premio</p><div>'+premios().map(p=>{
+    const falta=p.puntos-L.saldo;
+    return '<div class="ses premio"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
+      (falta>0?'<span class="falta">Te faltan '+falta.toLocaleString('es-ES')+'</span>':'<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button>')+'</div>';
+  }).join('')+'</div>';
+  if(hechos.length)h+='<p class="res-t">Ya conseguidos</p><div>'+hechos.slice(0,8).map(c=>'<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.resuelto||c.fecha)+'</small></span><span>'+ic('check')+'</span></div>').join('')+'</div>';
+  return h+'</section>';
+}
+function renderLogros(){
+  if(Datos.estado==='cargando'){app.innerHTML=splash();return}
+  const L=calcularLogros();
+  app.innerHTML='<p class="eyebrow">Logros</p><h1>Mis logros</h1>'+
+    '<p class="sub">Un día cuenta cuando respondes '+META.preguntas+' preguntas y aciertas '+META.aciertos+'. Puedes hacerlo en varias rondas.</p>'+
+    '<div class="kpis"><div class="kpi"><b>'+L.racha+'</b><small>Racha</small></div><div class="kpi"><b>'+L.mejorRacha+'</b><small>Mejor racha</small></div><div class="kpi"><b>'+L.saldo.toLocaleString('es-ES')+'</b><small>Puntos</small></div></div>'+
+    '<section class="sec-block"><h2>Hoy</h2><div class="box hoy-box"><p class="hoy-q">'+ic(L.hoyHecho?'check':'calendar')+'<b>'+esc(quePasa(L))+'</b></p>'+progresoHoy(L)+
+      (L.enRiesgo?'<p class="hint">Si hoy no llegas, la racha de '+plural(L.racha,'día','días')+' vuelve a empezar.</p>':'')+
+      (L.hoyHecho?'':'<button class="btn" data-a="inicio" style="margin-top:16px">Repasar '+ic('arrow')+'</button>')+'</div></section>'+
+    calendario(L)+medallasHTML(L)+premiosHTML(L)+
+    '<details class="ver-texto"><summary>Cómo se ganan puntos</summary><ul class="reglas">'+
+      '<li><b>'+PUNTOS.acierto+'</b> por cada acierto</li><li><b>+'+PUNTOS.recuperada+'</b> si aciertas una que habías fallado</li>'+
+      '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li><li>Cada medalla da puntos extra</li></ul></details>';
+}
+async function canjear(el){
+  const p=premios().find(x=>String(x.id)===el.dataset.id),L=calcularLogros();
+  if(!p)return;
+  if(p.puntos>L.saldo){toast('Te faltan '+(p.puntos-L.saldo)+' puntos.');return}
+  if(!confirm('¿Canjear «'+p.nombre+'» por '+p.puntos+' puntos? Papá o mamá lo confirmarán.'))return;
+  try{
+    await servidorPost({accion:'canjear',premioId:p.id,nombre:p.nombre,puntos:p.puntos});
+    await Datos.cargar();renderLogros();toast('¡Pedido! Avisa a papá o mamá.');
+  }catch(e){toast(/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido canjear: '+e.message+'.')}
+}
+function confirmarCanje(el){
+  const c=(Datos.canjes||[]).find(x=>String(x.id)===el.dataset.id);if(!c)return;
+  abrirModal('<p class="eyebrow">Solo para papá o mamá</p><h2 id="mTit" style="font-size:20px;text-transform:none;letter-spacing:0">'+esc(c.nombre)+'</h2>'+
+    '<p>'+(+c.puntos).toLocaleString('es-ES')+' puntos · pedido el '+fechaHora(c.fecha)+'</p>'+
+    '<div class="field"><label class="lbl-f" for="pin">PIN</label><input class="in" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>'+
+    '<div class="stack"><button class="btn" data-a="resolverCanje" data-id="'+esc(c.id)+'" data-e="entregado">'+ic('check')+'Entregado</button>'+
+    '<button class="btn sec" data-a="resolverCanje" data-id="'+esc(c.id)+'" data-e="rechazado">Rechazar y devolver los puntos</button>'+
+    '<button class="link" data-a="cerrar">Cancelar</button></div>');
+  const i=$('#pin');if(i)i.focus();
+}
+async function resolverCanje(el){
+  const pin=norm(($('#pin')||{}).value);
+  if(!pin){toast('Escribe el PIN.');$('#pin').focus();return}
+  try{
+    await servidorPost({accion:'resolverCanje',id:el.dataset.id,estado:el.dataset.e,pin});
+    await Datos.cargar();cerrarModal();renderLogros();toast(el.dataset.e==='entregado'?'¡Premio entregado!':'Rechazado: los puntos vuelven.');
+  }catch(e){toast(/pin/i.test(e.message)?'El PIN no es correcto.':/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido: '+e.message+'.')}
 }
 
 /* ================= PREGUNTAS (gestión) ================= */
@@ -1270,7 +1510,10 @@ async function retirar(id){
   catch(e){toast('No se ha podido quitar: '+e.message+'.')}
 }
 const A={
-  inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
+  inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),logros:()=>{cerrarModal();E.mes=0;ir('logros')},
+  mesAnt:()=>{E.mes--;renderLogros();const b=$('[data-a=mesAnt]');if(b)b.focus()},
+  mesSig:()=>{if(E.mes<0)E.mes++;renderLogros();const b=$('[data-a='+(E.mes<0?'mesSig':'mesAnt')+']');if(b)b.focus()},
+  canjear,confirmarCanje,resolverCanje,preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
   editor:()=>ir('editor'),
   editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},
   salir:()=>{if(confirm('¿Salir de la ronda? Se perderá lo que llevas.'))ir('inicio')},
@@ -1340,7 +1583,7 @@ document.addEventListener('click',e=>{
   const el=e.target.closest('[data-a]');
   if(el){
     const a=el.dataset.a,s=E.sesion;
-    if(E.pant==='pregunta'&&s&&s.resp.length>0&&['inicio','progreso','preguntas'].indexOf(a)>=0&&!confirm('¿Salir de la ronda? Se perderá lo que llevas.'))return;
+    if(E.pant==='pregunta'&&s&&s.resp.length>0&&['inicio','progreso','preguntas','logros'].indexOf(a)>=0&&!confirm('¿Salir de la ronda? Se perderá lo que llevas.'))return;
     if(el.getAttribute('aria-busy')==='true')return;
     if(A[a]){const r=A[a](el);if(r&&typeof r.then==='function')ocupado(el,r,etiquetaOcupado(a,el))}
     return;

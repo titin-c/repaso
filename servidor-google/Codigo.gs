@@ -1,8 +1,20 @@
 // Servidor del quiz "Repaso". Nunca borra nada: solo cambia el "estado" de las filas.
-// Hojas: Subidas (preguntas subidas), Resultados (rondas) y Alias (nombres unidos).
+// Hojas: Subidas (preguntas subidas), Resultados (rondas), Alias (nombres unidos),
+//        Premios (los cambias tú: nombre, puntos y activo = si/no) y Canjes (premios pedidos).
+
+// PIN para confirmar premios. CÁMBIALO por uno tuyo antes de implementar.
+var PIN_PADRES = '1234';
 var CAB_S = ['id','fecha','nombre','estado','xml'];
 var CAB_R = ['id','fecha','datos'];
 var CAB_A = ['id','fecha','tipo','de','a','estado','original'];
+var CAB_P = ['id','nombre','puntos','activo'];
+var CAB_C = ['id','fecha','premioId','nombre','puntos','estado','resuelto'];
+var PREMIOS_INICIALES = [
+  ['postre','Elegir el postre o la cena',400],['peli','Elegir la película familiar',400],['pantalla','30 minutos extra de pantalla',500],
+  ['tarea','Librarte de una tarea de casa',600],['plan','Plan especial con papá o mamá',1500],['merienda','Merendar fuera',1800],
+  ['amiga','Invitar a una amiga a casa o a dormir',2000],['libro','Un libro o cómic que elijas',2000],['cine','Entrada de cine con una amiga',5000],
+  ['capricho','Un capricho que elijas',6000],['actividad','Una actividad: escape room, patinaje…',7000]
+];
 
 function doGet() {
   var subidas = filas(hoja('Subidas', CAB_S))
@@ -14,7 +26,12 @@ function doGet() {
   var alias = filas(hoja('Alias', CAB_A))
     .filter(function(f){ return f[5] === 'activa'; })
     .map(function(f){ return {id:String(f[0]), tipo:String(f[2]), de:String(f[3]), a:String(f[4]), original:String(f[6])}; });
-  return json({ok:true, subidas:subidas, resultados:resultados, alias:alias});
+  var premios = filas(hojaPremios())
+    .filter(function(f){ return String(f[1]) && String(f[3]).toLowerCase() !== 'no'; })
+    .map(function(f){ return {id:String(f[0]), nombre:String(f[1]), puntos:Number(f[2]) || 0}; });
+  var canjes = filas(hoja('Canjes', CAB_C))
+    .map(function(f){ return {id:String(f[0]), fecha:String(f[1]), premioId:String(f[2]), nombre:String(f[3]), puntos:Number(f[4]) || 0, estado:String(f[5]), resuelto:String(f[6])}; });
+  return json({ok:true, subidas:subidas, resultados:resultados, alias:alias, premios:premios, canjes:canjes});
 }
 
 function doPost(e) {
@@ -55,6 +72,21 @@ function doPost(e) {
       var ok2 = cambiarEstado(hoja('Alias', CAB_A), String(d.id || ''), 'deshecha', 6);
       return json(ok2 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
     }
+    if (d.accion === 'canjear') {
+      var pts = Math.round(Number(d.puntos) || 0);
+      if (!d.nombre || pts <= 0) return json({ok:false, error:'datos incompletos'});
+      var cid = Utilities.getUuid();
+      hoja('Canjes', CAB_C).appendRow([cid, new Date().toISOString(), texto(d.premioId, 60), texto(d.nombre, 200), pts, 'pendiente', '']);
+      return json({ok:true, id:cid});
+    }
+    if (d.accion === 'resolverCanje') {
+      if (String(d.pin || '') !== String(PIN_PADRES)) return json({ok:false, error:'PIN incorrecto'});
+      if (['entregado','rechazado'].indexOf(d.estado) < 0) return json({ok:false, error:'estado no válido'});
+      var hc = hoja('Canjes', CAB_C);
+      var ok3 = cambiarEstado(hc, String(d.id || ''), d.estado, 6);
+      if (ok3) cambiarEstado(hc, String(d.id || ''), new Date().toISOString(), 7);
+      return json(ok3 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
+    }
     return json({ok:false, error:'acción desconocida'});
   } catch (err) {
     return json({ok:false, error:String(err)});
@@ -67,6 +99,16 @@ function hoja(nombre, cab) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var h = ss.getSheetByName(nombre);
   if (!h) { h = ss.insertSheet(nombre); h.appendRow(cab); h.getRange('A:Z').setNumberFormat('@'); h.setFrozenRows(1); }
+  return h;
+}
+function hojaPremios() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var h = ss.getSheetByName('Premios');
+  if (!h) {
+    h = hoja('Premios', CAB_P);
+    PREMIOS_INICIALES.forEach(function(p){ h.appendRow([p[0], p[1], p[2], 'si']); });
+    h.getRange('C:C').setNumberFormat('0');
+  }
   return h;
 }
 function filas(h) { var n = h.getLastRow(); return n < 2 ? [] : h.getRange(2, 1, n - 1, h.getLastColumn()).getValues(); }

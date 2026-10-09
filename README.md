@@ -6,6 +6,10 @@ Quiz para que Pepa repase los temas del cole. Se usa desde el navegador en cualq
 
 ---
 
+### Logros
+
+Un día cuenta cuando se responden 15 preguntas y se aciertan 11 (en una o varias rondas). En **Logros** se ve el calendario, la racha, las medallas (días seguidos, cada semana / quincena / mes de días hechos, aciertos seguidos, tiempo jugando…) y los puntos, que se canjean por premios que confirman papá o mamá con un PIN. Cada logro nuevo sale en una ventana de felicitación al acabar la ronda. Para cambiar el 15 y el 11: `meta:{preguntas:15,aciertos:11}` en `config.js`.
+
 ### Para quien mantiene el quiz
 
 - **Publicación:** GitHub Pages (Settings → Pages → Deploy from a branch → `main` / `root`).
