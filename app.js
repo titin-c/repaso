@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='11';
+const VERSION='12';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -1985,7 +1985,19 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden
 /* Si estaba creando preguntas y el móvil recargó la página al volver de la IA, se sigue donde lo dejó */
 const reanudar=(E.imp.paso===2||E.imp.paso===3)&&Date.now()-(E.imp.pasoTs||0)<3*3600e3;
 if(reanudar&&E.imp.paso===3)E.imp.paso=2;
-Datos.cargar().then(()=>{
+/* Si la app se queda abierta (en el móvil puede estar horas en segundo plano), al volver a ella se buscan
+   preguntas y correcciones nuevas. Nunca a mitad de una ronda ni mientras se edita. */
+let ultimaCarga=Date.now();
+const LIBRES=['inicio','logros','progreso','preguntas','nombres','avisos','resultado'];
+function refrescarSiToca(){
+  if(document.visibilityState!=='visible'||Date.now()-ultimaCarga<5*60e3||LIBRES.indexOf(E.pant)<0||Datos.estado==='cargando')return;
+  ultimaCarga=Date.now();
+  Datos.cargar().then(()=>{if(E.pant!=='resultado'&&LIBRES.indexOf(E.pant)>=0&&$('#modal').hidden)PANT[E.pant]()});
+}
+document.addEventListener('visibilitychange',refrescarSiToca);
+window.addEventListener('focus',refrescarSiToca);
+window.addEventListener('pageshow',e=>{if(e.persisted){ultimaCarga=0;refrescarSiToca()}});
+Datos.cargar().then(()=>{ultimaCarga=Date.now();
   if(reanudar&&E.pant==='importar'&&E.imp.paso===2&&norm(E.imp.xml)&&!E.rev&&E.imp.reanudar3){E.imp.reanudar3=false;revisar();return}
   if(E.pant!=='pregunta'&&E.pant!=='resultado'&&E.pant!=='editor'&&E.pant!=='importar'&&E.pant!=='nombre')PANT[E.pant]();
 });
