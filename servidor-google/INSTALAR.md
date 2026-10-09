@@ -40,4 +40,7 @@ El servidor es gratuito y funciona con tu cuenta de Google. Guarda en una hoja d
 - **PIN de los padres:** al principio de `Codigo.gs` está `var PIN_PADRES = '1234';`. Cámbialo por el tuyo antes de publicar la nueva versión. Solo con ese PIN se puede confirmar o rechazar un premio pedido.
 - **Hoja «Premios»:** se crea sola la primera vez que se abre la app, ya con la lista inicial. Puedes cambiar el nombre o los puntos, añadir filas nuevas (con un `id` cualquiera, sin repetir) o poner `no` en la columna `activo` para ocultar un premio.
 - **Hoja «Canjes»:** cada premio pedido. `pendiente` → lo confirmas tú en la app (Logros → Premios → Confirmar) y pasa a `entregado` o `rechazado` (si se rechaza, los puntos vuelven).
-- Las medallas, la racha y los puntos se calculan en la app a partir de las rondas: no hay que tocar nada.
+- Las medallas, la racha y los puntos se calculan en la app a partir de las rondas y de las preguntas subidas: no hay que tocar nada.
+- **Empezar de cero:** en la app, Preguntas → Más opciones → «Empezar de cero los puntos» (pide el PIN). Se guarda en la hoja «Ajustes» la fecha desde la que cuentan los puntos; no se borra nada y se puede deshacer desde el mismo sitio.
+- **Lista de premios nueva:** si la hoja «Premios» sigue exactamente con la primera lista, se cambia sola por la nueva. Si ya la habías tocado, no se cambia (bórrala entera y se vuelve a crear con la nueva).
+- **Carga rápida:** la app solo descarga las preguntas y rondas nuevas desde la última vez; lo demás lo guarda en el dispositivo.

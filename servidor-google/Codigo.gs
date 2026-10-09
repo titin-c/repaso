@@ -1,6 +1,7 @@
 // Servidor del quiz "Repaso". Nunca borra nada: solo cambia el "estado" de las filas.
 // Hojas: Subidas (preguntas subidas), Resultados (rondas), Alias (nombres unidos),
-//        Premios (los cambias tú: nombre, puntos y activo = si/no) y Canjes (premios pedidos).
+//        Premios (los cambias tú: nombre, puntos y activo = si/no), Canjes (premios pedidos)
+//        y Ajustes (desde cuándo cuentan los puntos, si se empezó de cero).
 
 // PIN para confirmar premios. CÁMBIALO por uno tuyo antes de implementar.
 var PIN_PADRES = '1234';
@@ -8,21 +9,30 @@ var CAB_S = ['id','fecha','nombre','estado','xml'];
 var CAB_R = ['id','fecha','datos'];
 var CAB_A = ['id','fecha','tipo','de','a','estado','original'];
 var CAB_P = ['id','nombre','puntos','activo'];
+var CAB_J = ['clave','valor','fecha'];
 var CAB_C = ['id','fecha','premioId','nombre','puntos','estado','resuelto'];
 var PREMIOS_INICIALES = [
-  ['postre','Elegir el postre o la cena',400],['peli','Elegir la película familiar',400],['pantalla','30 minutos extra de pantalla',500],
-  ['tarea','Librarte de una tarea de casa',600],['plan','Plan especial con papá o mamá',1500],['merienda','Merendar fuera',1800],
-  ['amiga','Invitar a una amiga a casa o a dormir',2000],['libro','Un libro o cómic que elijas',2000],['cine','Entrada de cine con una amiga',5000],
-  ['capricho','Un capricho que elijas',6000],['actividad','Una actividad: escape room, patinaje…',7000]
+  ['pantalla','1 hora extra de pantalla el fin de semana',400],['comida','Pedir comida a domicilio (eliges tú)',700],
+  ['tareas','Un día sin tareas de casa',800],['euros5','5 €',1000],['euros10','10 €',1800],
+  ['cena','Merienda o cena fuera con una amiga',2000],['pijamas','Fiesta de pijamas en casa',2500],['euros20','20 €',3500],
+  ['tarjeta','Tarjeta regalo de 25 € de tu tienda favorita',4500],['cine','Cine con amigas: entradas y palomitas',5000],
+  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',10000],['auriculares','Auriculares inalámbricos',12000],
+  ['parque','Día en un parque de atracciones o acuático',15000],['gran','Gran premio: lo que tú elijas hasta 150 €',25000]
 ];
+// La primera lista (más infantil). Si la hoja sigue exactamente con ella, se cambia sola por la nueva.
+var PREMIOS_V1 = 'postre,peli,pantalla,tarea,plan,merienda,amiga,libro,cine,capricho,actividad';
 
-function doGet() {
-  var subidas = filas(hoja('Subidas', CAB_S))
+// La app pide primero un índice ligero (v=2): las subidas sin el XML y solo las rondas nuevas desde la última vez.
+// Luego descarga el XML solo de las subidas que aún no tiene guardadas (?xml=id1,id2…).
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.xml) return json({ok:true, xml:xmlDe(String(p.xml).split(','))});
+  var ligera = p.v === '2';
+  var hs = hoja('Subidas', CAB_S);
+  var subidas = filas(hs, ligera ? 4 : 5)
     .filter(function(f){ return f[3] === 'activa'; })
-    .map(function(f){ return {id:String(f[0]), fecha:String(f[1]), nombre:String(f[2]), xml:String(f[4])}; });
-  var resultados = filas(hoja('Resultados', CAB_R))
-    .map(function(f){ try { return JSON.parse(f[2]); } catch(e) { return null; } })
-    .filter(function(r){ return r; });
+    .map(function(f){ var o = {id:String(f[0]), fecha:String(f[1]), nombre:String(f[2])}; if (!ligera) o.xml = String(f[4]); return o; });
+  var res = resultadosDesde(ligera ? String(p.desde || '') : '');
   var alias = filas(hoja('Alias', CAB_A))
     .filter(function(f){ return f[5] === 'activa'; })
     .map(function(f){ return {id:String(f[0]), tipo:String(f[2]), de:String(f[3]), a:String(f[4]), original:String(f[6])}; });
@@ -31,7 +41,35 @@ function doGet() {
     .map(function(f){ return {id:String(f[0]), nombre:String(f[1]), puntos:Number(f[2]) || 0}; });
   var canjes = filas(hoja('Canjes', CAB_C))
     .map(function(f){ return {id:String(f[0]), fecha:String(f[1]), premioId:String(f[2]), nombre:String(f[3]), puntos:Number(f[4]) || 0, estado:String(f[5]), resuelto:String(f[6])}; });
-  return json({ok:true, subidas:subidas, resultados:resultados, alias:alias, premios:premios, canjes:canjes});
+  return json({ok:true, v:2, subidas:subidas, resultados:res.lista, hasta:res.hasta, parcial:!!(ligera && p.desde),
+    alias:alias, premios:premios, canjes:canjes, ajustes:ajustes()});
+}
+// Rondas guardadas después de «desde» (las filas van en orden, así que solo se leen las del final)
+function resultadosDesde(desde) {
+  var h = hoja('Resultados', CAB_R), n = h.getLastRow();
+  if (n < 2) return {lista:[], hasta:desde};
+  var fechas = h.getRange(2, 2, n - 1, 1).getValues();
+  var i = 0;
+  if (desde) { i = fechas.length; while (i > 0 && String(fechas[i - 1][0]) > desde) i--; }
+  var hasta = String(fechas[fechas.length - 1][0]) || desde;
+  if (i >= fechas.length) return {lista:[], hasta:hasta};
+  var lista = h.getRange(i + 2, 3, fechas.length - i, 1).getValues()
+    .map(function(f){ try { return JSON.parse(f[0]); } catch(e) { return null; } })
+    .filter(function(r){ return r; });
+  return {lista:lista, hasta:hasta};
+}
+function xmlDe(ids) {
+  var h = hoja('Subidas', CAB_S), n = h.getLastRow(), out = {};
+  if (n < 2) return out;
+  var col = h.getRange(2, 1, n - 1, 1).getValues();
+  ids = ids.slice(0, 40);
+  col.forEach(function(f, i){ var id = String(f[0]); if (ids.indexOf(id) >= 0) out[id] = String(h.getRange(i + 2, 5, 1, 1).getValues()[0][0]); });
+  return out;
+}
+function ajustes() {
+  var o = {};
+  filas(hoja('Ajustes', CAB_J)).forEach(function(f){ o[String(f[0])] = String(f[1]); });
+  return o;
 }
 
 function doPost(e) {
@@ -87,6 +125,13 @@ function doPost(e) {
       if (ok3) cambiarEstado(hc, String(d.id || ''), new Date().toISOString(), 7);
       return json(ok3 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
     }
+    if (d.accion === 'reiniciar') {
+      // Empezar de cero: los puntos, rondas y medallas cuentan desde ahora. No se borra nada; con «deshacer» vuelve todo.
+      if (String(d.pin || '') !== String(PIN_PADRES)) return json({ok:false, error:'PIN incorrecto'});
+      var ahora = new Date().toISOString();
+      hoja('Ajustes', CAB_J).appendRow(['inicio', d.deshacer ? '' : ahora, ahora]);
+      return json({ok:true});
+    }
     return json({ok:false, error:'acción desconocida'});
   } catch (err) {
     return json({ok:false, error:String(err)});
@@ -108,10 +153,13 @@ function hojaPremios() {
     h = hoja('Premios', CAB_P);
     PREMIOS_INICIALES.forEach(function(p){ h.appendRow([p[0], p[1], p[2], 'si']); });
     h.getRange('C:C').setNumberFormat('0');
+  } else if (filas(h).map(function(f){ return String(f[0]); }).join(',') === PREMIOS_V1) {
+    h.deleteRows(2, h.getLastRow() - 1);
+    PREMIOS_INICIALES.forEach(function(p){ h.appendRow([p[0], p[1], p[2], 'si']); });
   }
   return h;
 }
-function filas(h) { var n = h.getLastRow(); return n < 2 ? [] : h.getRange(2, 1, n - 1, h.getLastColumn()).getValues(); }
+function filas(h, cols) { var n = h.getLastRow(); return n < 2 ? [] : h.getRange(2, 1, n - 1, cols || h.getLastColumn()).getValues(); }
 function cambiarEstado(h, id, estado, col) {
   var ids = filas(h).map(function(f){ return String(f[0]); });
   var i = ids.indexOf(id);

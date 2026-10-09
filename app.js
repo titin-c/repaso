@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='6';
+const VERSION='7';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -160,13 +160,53 @@ function canonizar(listas,alias){
 function irA(sel){const el=$(sel);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
 
 /* ---------- servidor (Google Apps Script) ---------- */
-async function servidorGet(){
+/* Con el servidor nuevo (v=2) se pide un índice ligero: las subidas sin el XML y solo las rondas nuevas.
+   El XML se descarga solo de las subidas que este dispositivo aún no tiene. Así, con miles de preguntas,
+   cada vez que se abre la app solo viaja lo nuevo. */
+async function servidorGet(cache){
   if(!CONFIG.servidor)return null;
+  const url=q=>CONFIG.servidor+(CONFIG.servidor.indexOf('?')>=0?'&':'?')+q+'&t='+Date.now();
   try{
-    const r=await fetch(CONFIG.servidor+(CONFIG.servidor.indexOf('?')>=0?'&':'?')+'t='+Date.now());
-    if(!r.ok)return null;const j=await r.json();return j&&j.ok?j:null;
+    const desde=cache&&cache.hastaRes&&Array.isArray(cache.resSrv)?cache.hastaRes:'';
+    const r=await fetch(url('v=2'+(desde?'&desde='+encodeURIComponent(desde):'')));
+    if(!r.ok)return null;const j=await r.json();if(!j||!j.ok)return null;
+    if(j.v!==2)return j;                         // servidor antiguo: ya trae todo
+    const prev={};((cache&&cache.subidas)||[]).forEach(x=>{if(x&&x.xml)prev[x.id]=x.xml});
+    const faltan=j.subidas.filter(x=>!prev[x.id]).map(x=>x.id);
+    for(let i=0;i<faltan.length;i+=20){
+      const rx=await fetch(url('xml='+faltan.slice(i,i+20).join(',')));
+      const jx=rx.ok?await rx.json():null;if(!jx||!jx.ok)return null;
+      Object.assign(prev,jx.xml||{});
+    }
+    j.subidas=j.subidas.map(x=>Object.assign({},x,{xml:prev[x.id]||''}));
+    if(j.parcial){const m=new Map();cache.resSrv.concat(j.resultados||[]).forEach(x=>{if(x&&x.fecha)m.set(x.id||x.fecha,x)});j.resultados=Array.from(m.values())}
+    return j;
   }catch(e){return null}
 }
+/* Caché del banco de preguntas: en IndexedDB (cabe mucho más que en localStorage); si no hay, en localStorage */
+const Cache={
+  db(){
+    if(this.p)return this.p;
+    this.p=new Promise(res=>{
+      const t=setTimeout(()=>res(null),1500);
+      try{const r=indexedDB.open('repepaso',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+        r.onsuccess=()=>{clearTimeout(t);res(r.result)};r.onerror=()=>{clearTimeout(t);res(null)}}
+      catch(e){clearTimeout(t);res(null)}
+    });
+    return this.p;
+  },
+  async leer(){
+    const db=await this.db();
+    if(db){const v=await new Promise(res=>{try{const q=db.transaction('kv').objectStore('kv').get('cache');q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)}catch(e){res(null)}});if(v)return v}
+    return ls.get(LS.cache,null);
+  },
+  async guardar(c){
+    const db=await this.db();
+    if(db){const ok=await new Promise(res=>{try{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(c,'cache');tx.oncomplete=()=>res(true);tx.onerror=()=>res(false)}catch(e){res(false)}});
+      if(ok){ls.del(LS.cache);return}}
+    ls.set(LS.cache,c);
+  }
+};
 function servidorPost(datos){return red(servidorPost0(datos))}
 async function servidorPost0(datos){
   if(!CONFIG.servidor)throw new Error('el servidor no está configurado');
@@ -361,11 +401,11 @@ function aXML(P){
 
 /* ---------- datos ---------- */
 const Datos={
-  base:[],extra:[],archivos:[],subidas:[],resSrv:[],alias:[],premios:[],canjes:[],fecha:null,estado:'cargando',servidorOk:false,
+  base:[],extra:[],archivos:[],subidas:[],resSrv:[],alias:[],premios:[],canjes:[],inicio:'',ver:0,fecha:null,estado:'cargando',servidorOk:false,
   async cargar(forzar){
     this.estado='cargando';
-    const cache=ls.get(LS.cache,null)||{};
-    const [lista,srv]=await Promise.all([listarArchivos(),servidorGet()]);
+    const cache=(await Cache.leer())||{};
+    const [lista,srv]=await Promise.all([listarArchivos(),servidorGet(forzar?null:cache)]);
     let archivos=cache.archivos||[];
     if(lista){
       const prev={};archivos.forEach(a=>{prev[a.nombre]=a});
@@ -384,8 +424,9 @@ const Datos={
     const c={fecha:enLinea?new Date().toISOString():cache.fecha,archivos,
       subidas:srv?srv.subidas||[]:cache.subidas||[],resSrv:srv?srv.resultados||[]:cache.resSrv||[],
       alias:srv?srv.alias||[]:cache.alias||[],
-      premios:srv?srv.premios||[]:cache.premios||[],canjes:srv?srv.canjes||[]:cache.canjes||[]};
-    if(enLinea)ls.set(LS.cache,c);
+      premios:srv?srv.premios||[]:cache.premios||[],canjes:srv?srv.canjes||[]:cache.canjes||[],
+      ajustes:srv?srv.ajustes||{}:cache.ajustes||{},hastaRes:srv?srv.hasta||'':cache.hastaRes||''};
+    if(enLinea)await Cache.guardar(c);
     this.usar(c);
     this.servidorOk=!!srv;
     this.estado=(!enLinea&&cache.fecha)?'offline':(this.base.length?'ok':'vacio');
@@ -393,6 +434,7 @@ const Datos={
   },
   usar(c){
     this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];this.alias=c.alias||[];
+    this.inicio=(c.ajustes&&c.ajustes.inicio)||'';this.ver++;
     this.premios=(c.premios||[]).map(p=>({id:String(p.id),nombre:norm(p.nombre),puntos:Math.round(+p.puntos||0)}));this.canjes=c.canjes||[];
     this.subidas=(c.subidas||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(s=>{
       let r;try{r=parsearXML(arreglarXML(s.xml),s.nombre)}catch(e){r={ok:[],errores:[e.message],todas:[]}}
@@ -410,11 +452,25 @@ const Datos={
     return Array.from(m.values());
   },
   /* resultados de este dispositivo + los del servidor (todos los dispositivos) */
+  /* Desde «inicio» (si se empezó de cero), con los nombres ya unidos y sin lo eliminado */
   resultados(){
-    const m=new Map();
-    this.resSrv.concat(ls.get(LS.resultados,[])).forEach(r=>{if(r&&r.fecha)m.set(r.id||r.fecha,r)});
-    return Array.from(m.values()).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    const loc=ls.get(LS.resultados,[]),key=this.ver+'|'+this.resSrv.length+'|'+loc.length+'|'+this.inicio;
+    if(this._memo&&this._memo.key===key)return this._memo.R;
+    const m=new Map(),ini=this.inicio;
+    this.resSrv.concat(loc).forEach(r=>{if(r&&r.fecha&&(!ini||String(r.fecha)>=ini))m.set(r.id||r.fecha,r)});
+    let R=Array.from(m.values()).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)))
+      .map(r=>Object.assign({},r,{detalle:(r.detalle||[]).map(d=>Object.assign({},d))}));
+    canonizar(R.map(r=>r.detalle).concat([R.filter(r=>r.curso&&r.asignatura)]),this.alias);
+    R=R.map(r=>{
+      if(!r.detalle.length)return esOculto(r)?null:r;
+      const det=r.detalle.filter(d=>!esOculto(d));
+      if(!det.length)return null;
+      if(esOculto(r))['curso','asignatura','tema'].forEach(k=>{r[k]=null});
+      return Object.assign(r,{detalle:det,total:det.length,aciertos:det.filter(d=>d.ok).length});
+    }).filter(Boolean);
+    this._memo={key,R};return R;
   },
+  canjesVigentes(){return (this.canjes||[]).filter(c=>!this.inicio||String(c.fecha)>=this.inicio)},
   guardarResultado(r){
     r.id=nuevoId();r.enviado=false;
     const a=ls.get(LS.resultados,[]);a.push(r);ls.set(LS.resultados,a);
@@ -449,7 +505,7 @@ function ocupado(btn,p,texto){
 }
 function conBoton(btn,texto,fn){return ocupado(btn,fn(),texto.replace(/…$/,''))}
 const OCUPADO={actualizar:'Actualizando',subirImp:'Guardando',guardarNombre:'Guardando',unirFicha:'Uniendo',eliminarFicha:'Eliminando',
-  unirPar:'Uniendo',canjear:'Pidiendo',resolverCanje:'Guardando',retirarEd:'Quitando',pegarResp:'Pegando',
+  unirPar:'Uniendo',canjear:'Pidiendo',resolverCanje:'Guardando',hacerReinicio:'Guardando',retirarEd:'Quitando',pegarResp:'Pegando',
   deshacerAlias:el=>/recuperar/i.test(el.textContent)?'Recuperando':'Deshaciendo'};
 const etiquetaOcupado=(a,el)=>typeof OCUPADO[a]==='function'?OCUPADO[a](el):(OCUPADO[a]||'Un momento');
 /* Barra fina bajo la cabecera mientras se habla con el servidor */
@@ -674,9 +730,14 @@ function renderProgreso(){
      Si falla más, solo tiene que seguir jugando: en cuanto llega a los aciertos, el día cuenta.
    · Racha = días seguidos que cuentan. Si hoy aún no ha llegado, la racha sigue viva hasta medianoche.
    · Medallas: rachas de días, cada 7/15/30 días hechos (aunque no sean seguidos), aciertos seguidos y fallos recuperados.
-   · Puntos: 10 por acierto, +5 si acierta una que había fallado, +50 por día hecho y un extra por cada medalla. */
+   · Puntos: 10 por acierto, +5 si acierta una que había fallado, +50 por día hecho y un extra por cada medalla.
+   · Subir preguntas también da puntos (ver SUBIR), pero con topes para que compense más estudiar que subir por subir:
+     5 por pregunta nueva (máx. 30 por tema y día), +100 por tema nuevo (si trae al menos 10 preguntas)
+     y +50 cuando, después de subirlo, lo repasa: 10 respuestas de ese tema con 7 aciertos («tema estrenado»).
+     Si papá o mamá eliminan un tema de prueba o basura, sus puntos desaparecen. */
 const META=Object.assign({preguntas:15,aciertos:11},CONFIG.meta||{});
 const PUNTOS={acierto:10,recuperada:5,dia:50};
+const SUBIR={pregunta:5,topeTemaDia:30,tema:100,minTema:10,estreno:50,estrenoN:10,estrenoOk:7};
 const MEDALLAS=[
   {id:'primera',grupo:'otras',ic:'medal',nombre:'Primera ronda',txt:'Termina tu primera ronda',pts:20,v:L=>L.rondas,meta:1},
   ...[[3,50],[7,150],[15,300],[30,600],[60,1000],[100,2000]].map(([n,p])=>({id:'racha'+n,grupo:'racha',ic:'flame',nombre:n+' días seguidos',txt:'Haz '+n+' días seguidos',pts:p,v:L=>L.mejorRacha,meta:n})),
@@ -686,15 +747,23 @@ const MEDALLAS=[
   ...[[10,50],[25,150],[50,300],[100,600]].map(([n,p])=>({id:'combo'+n,grupo:'combo',ic:'bolt',nombre:n+' aciertos seguidos',txt:'Acierta '+n+' seguidas sin fallar',pts:p,v:L=>L.mejorCombo,meta:n})),
   ...[[50,500],[100,1000],[200,2000],[365,4000]].map(([n,p])=>({id:'total'+n,grupo:'dias',ic:'calendar',nombre:n+' días hechos',txt:'Completa '+n+' días en total',pts:p,v:L=>L.diasHechos,meta:n})),
   ...[[30,'Un mes jugando',200],[182,'Medio año jugando',1000],[365,'Un año jugando',3000]].map(([n,t,p])=>({id:'tiempo'+n,grupo:'tiempo',ic:'star',nombre:t,txt:'Sigue jugando '+(n===30?'un mes':n===182?'medio año':'un año')+' desde tu primera ronda',pts:p,v:L=>L.antiguedad,meta:n})),
+  {id:'subida1',grupo:'crea',ic:'upload',nombre:'Primer tema subido',txt:'Sube tu primer tema nuevo',pts:50,v:L=>L.temasNuevos,meta:1},
+  ...[[5,200],[10,400],[25,1000],[50,2000]].map(([n,p])=>({id:'temas'+n,grupo:'crea',ic:'upload',nombre:n+' temas subidos',txt:'Sube '+n+' temas nuevos',pts:p,v:L=>L.temasNuevos,meta:n})),
+  ...[[100,150],[250,300],[500,600],[1000,1200]].map(([n,p])=>({id:'preg'+n,grupo:'crea',ic:'plus',nombre:n+' preguntas creadas',txt:'Sube '+n+' preguntas nuevas',pts:p,v:L=>L.preguntasNuevas,meta:n})),
+  {id:'productivo',grupo:'crea',ic:'sparkle',nombre:'Día productivo',txt:'Sube 3 temas nuevos el mismo día',pts:150,v:L=>L.diasProductivos,cada:1},
+  {id:'maraton',grupo:'crea',ic:'bolt',nombre:'Maratón de temas',txt:'Sube 5 temas nuevos el mismo día',pts:300,v:L=>L.diasMaraton,cada:1},
+  ...[[1,50],[5,250],[20,800]].map(([n,p])=>({id:'estreno'+n,grupo:'crea',ic:'check',nombre:n===1?'Tema estrenado':n+' temas estrenados',txt:'Repasa '+(n===1?'un tema que hayas subido':n+' temas que hayas subido'),pts:p,v:L=>L.temasEstrenados,meta:n})),
   {id:'errores10',grupo:'otras',ic:'repeat',nombre:'Aprendo de mis fallos',txt:'Acierta 10 que habías fallado',pts:100,v:L=>L.recuperadas,meta:10},
   {id:'errores50',grupo:'otras',ic:'repeat',nombre:'Ya no se me escapan',txt:'Acierta 50 que habías fallado',pts:300,v:L=>L.recuperadas,meta:50}
 ];
 /* Lista inicial de premios. Los de verdad se cambian en la hoja «Premios» del servidor. */
 const PREMIOS_BASE=[
-  ['postre','Elegir el postre o la cena',400],['peli','Elegir la película familiar',400],['pantalla','30 minutos extra de pantalla',500],
-  ['tarea','Librarte de una tarea de casa',600],['plan','Plan especial con papá o mamá',1500],['merienda','Merendar fuera',1800],
-  ['amiga','Invitar a una amiga a casa o a dormir',2000],['libro','Un libro o cómic que elijas',2000],['cine','Entrada de cine con una amiga',5000],
-  ['capricho','Un capricho que elijas',6000],['actividad','Una actividad: escape room, patinaje…',7000]
+  ['pantalla','1 hora extra de pantalla el fin de semana',400],['comida','Pedir comida a domicilio (eliges tú)',700],
+  ['tareas','Un día sin tareas de casa',800],['euros5','5 €',1000],['euros10','10 €',1800],
+  ['cena','Merienda o cena fuera con una amiga',2000],['pijamas','Fiesta de pijamas en casa',2500],['euros20','20 €',3500],
+  ['tarjeta','Tarjeta regalo de 25 € de tu tienda favorita',4500],['cine','Cine con amigas: entradas y palomitas',5000],
+  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',10000],['auriculares','Auriculares inalámbricos',12000],
+  ['parque','Día en un parque de atracciones o acuático',15000],['gran','Gran premio: lo que tú elijas hasta 150 €',25000]
 ].map(([id,nombre,puntos])=>({id,nombre,puntos}));
 
 const diaClave=d=>{d=d instanceof Date?d:new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -703,7 +772,8 @@ const vecesMedalla=(m,L)=>m.cada?Math.floor(m.v(L)/m.cada):(m.v(L)>=m.meta?1:0);
 
 function calcularLogros(R,ahora){
   R=R||Datos.resultados();ahora=ahora||new Date();
-  const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora)};
+  const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora),porDia:{}};
+  const sumar=(k,n)=>{L.porDia[k]=(L.porDia[k]||0)+n};
   const ult=new Map();
   R.forEach(r=>{
     const k=diaClave(r.fecha),d=L.dias[k]||(L.dias[k]={n:0,ok:0,hecho:false});
@@ -711,15 +781,16 @@ function calcularLogros(R,ahora){
     if(det)det.forEach(x=>{
       d.n++;
       if(x.ok){
-        d.ok++;L.puntosRespuestas+=PUNTOS.acierto;L.combo++;
-        if(ult.get(x.id)===false){L.recuperadas++;L.puntosRespuestas+=PUNTOS.recuperada}
+        d.ok++;L.puntosRespuestas+=PUNTOS.acierto;sumar(k,PUNTOS.acierto);L.combo++;
+        if(ult.get(x.id)===false){L.recuperadas++;L.puntosRespuestas+=PUNTOS.recuperada;sumar(k,PUNTOS.recuperada)}
       }else L.combo=0;
       if(L.combo>L.mejorCombo)L.mejorCombo=L.combo;
       if(x.id)ult.set(x.id,!!x.ok);
     });
     else{d.n+=r.total||0;d.ok+=r.aciertos||0}
-    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos)d.hecho=true;
+    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;sumar(k,PUNTOS.dia)}
   });
+  subidasLogros(L,R,sumar);
   const hechos=Object.keys(L.dias).filter(k=>L.dias[k].hecho).sort();
   L.diasHechos=hechos.length;
   /* días desde la primera ronda hasta la última */
@@ -737,10 +808,47 @@ function calcularLogros(R,ahora){
   L.enRiesgo=L.racha>0&&!h.hecho;
   /* medallas y puntos */
   L.medallas=MEDALLAS.map(m=>({m,veces:vecesMedalla(m,L),valor:m.v(L)}));
-  L.puntos=L.puntosRespuestas+L.diasHechos*PUNTOS.dia+L.medallas.reduce((s,x)=>s+x.veces*x.m.pts,0);
-  const gastado=(Datos.canjes||[]).filter(c=>c.estado!=='rechazado').reduce((s,c)=>s+(+c.puntos||0),0);
+  L.puntos=L.puntosRespuestas+L.diasHechos*PUNTOS.dia+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.veces*x.m.pts,0);
+  /* ritmo: puntos al día de media en las dos últimas semanas (sin contar medallas) */
+  let suma=0;for(let i=0;i<14;i++)suma+=L.porDia[sumarDias(L.hoy,-i)]||0;
+  L.ritmo=suma/14;
+  const gastado=Datos.canjesVigentes().filter(c=>c.estado!=='rechazado').reduce((s,c)=>s+(+c.puntos||0),0);
   L.gastado=gastado;L.saldo=L.puntos-gastado;
   return L;
+}
+/* Puntos por subir preguntas. Una pregunta es «nueva» la primera vez que aparece su id;
+   editar o volver a subir lo mismo no suma otra vez. Lo subido antes de «empezar de cero» no cuenta. */
+function subidasLogros(L,R,sumar){
+  Object.assign(L,{puntosSubidas:0,preguntasNuevas:0,temasNuevos:0,diasProductivos:0,diasMaraton:0,temasEstrenados:0});
+  const ini=Datos.inicio,vistos=new Set(),temas=new Set(),porDiaTema={},temasDia={},creados=[];
+  Datos.archivos.forEach(a=>a.preguntas.forEach(q=>{vistos.add(q.id);temas.add(q.curso+'|'+q.asignatura+'|'+q.tema)}));
+  (Datos.subidas||[]).forEach(s=>{
+    const cuenta=!ini||String(s.fecha)>=ini,dia=diaClave(s.fecha),nuevas={};
+    s.preguntas.forEach(q=>{
+      if(esOculto(q)||vistos.has(q.id))return;vistos.add(q.id);
+      const t=q.curso+'|'+q.asignatura+'|'+q.tema;nuevas[t]=(nuevas[t]||0)+1;
+    });
+    Object.keys(nuevas).forEach(t=>{
+      const esNuevo=!temas.has(t)&&nuevas[t]>=SUBIR.minTema;
+      if(esNuevo||nuevas[t]>=SUBIR.minTema)temas.add(t);
+      if(!cuenta)return;
+      const k=dia+'#'+t,ya=porDiaTema[k]||0,n=Math.max(0,Math.min(nuevas[t],SUBIR.topeTemaDia-ya));
+      porDiaTema[k]=ya+nuevas[t];
+      L.preguntasNuevas+=nuevas[t];
+      const pts=n*SUBIR.pregunta+(esNuevo?SUBIR.tema:0);L.puntosSubidas+=pts;sumar(dia,pts);
+      if(esNuevo){L.temasNuevos++;temasDia[dia]=(temasDia[dia]||0)+1;creados.push({t,fecha:String(s.fecha)})}
+    });
+  });
+  Object.keys(temasDia).forEach(d=>{if(temasDia[d]>=3)L.diasProductivos++;if(temasDia[d]>=5)L.diasMaraton++});
+  /* tema estrenado: después de subirlo, 10 respuestas de ese tema con 7 aciertos */
+  creados.forEach(c=>{
+    let n=0,ok=0,dia=null;
+    R.forEach(r=>{if(String(r.fecha)<c.fecha)return;(r.detalle||[]).forEach(d=>{
+      if(dia||d.curso+'|'+d.asignatura+'|'+d.tema!==c.t)return;n++;if(d.ok)ok++;
+      if(n>=SUBIR.estrenoN&&ok>=SUBIR.estrenoOk)dia=diaClave(r.fecha);
+    })});
+    if(dia){L.temasEstrenados++;L.puntosSubidas+=SUBIR.estreno;sumar(dia,SUBIR.estreno)}
+  });
 }
 /* Qué ha cambiado con la última ronda (para celebrarlo en el resultado) */
 function novedades(antes,despues){
@@ -750,6 +858,9 @@ function novedades(antes,despues){
     racha:despues.racha>antes.racha?despues.racha:0,
     record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
     combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
+    temas:despues.temasNuevos-antes.temasNuevos,
+    preguntas:despues.preguntasNuevas-antes.preguntasNuevas,
+    estrenos:despues.temasEstrenados-antes.temasEstrenados,
     medallas:despues.medallas.filter((x,i)=>x.veces>antes.medallas[i].veces).map(x=>x.m)
   };
 }
@@ -789,6 +900,9 @@ function logrosDe(nv,L){
   if(nv.diaHecho)out.push({ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
   if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
   if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
+  if(nv.temas>0)out.push({ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
+  else if(nv.preguntas>0)out.push({ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+SUBIR.pregunta+' puntos por cada una (hasta '+SUBIR.topeTemaDia+' por tema y día).'});
+  if(nv.estrenos>0)out.push({ic:'check',t:'¡Tema estrenado!',x:'Has repasado un tema que subiste tú. +'+SUBIR.estreno+' puntos.'});
   nv.medallas.forEach(m=>out.push({ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
   return out;
 }
@@ -796,9 +910,9 @@ function hazaña(m,L){
   const n=m.meta;
   return {racha:'Has repasado '+n+' días seguidos.',combo:'Has acertado '+n+' preguntas seguidas sin fallar.',tiempo:'Llevas '+m.nombre.replace(/ jugando$/,'').toLowerCase()+' repasando con rePEPAso.'}[m.grupo]||
     (m.cada?'Ya llevas '+plural(L.diasHechos,'día completado','días completados')+'.':m.id==='primera'?'Has terminado tu primera ronda.':
-     m.grupo==='dias'?'Has completado '+n+' días.':'Has acertado '+n+' preguntas que antes habías fallado.');
+     m.grupo==='dias'?'Has completado '+n+' días.':m.grupo==='crea'?m.txt.replace(/^Sube/,'Has subido').replace(/^Repasa/,'Has repasado')+'.':'Has acertado '+n+' preguntas que antes habías fallado.');
 }
-function modalLogros(nv,L){
+function modalLogros(nv,L,donde){
   const lista=logrosDe(nv,L);if(!lista.length)return;
   const hay=lista.some(x=>x.med);
   const top=lista.find(x=>x.med)||lista[0];
@@ -806,7 +920,7 @@ function modalLogros(nv,L){
     '<p class="eyebrow">'+(hay?'Nueva medalla':'Nuevo logro')+'</p><h2 id="mTit">'+esc(lista.length===1?lista[0].t:'¡'+lista.length+' logros a la vez!')+'</h2>'+
     '<div class="felic-l">'+lista.map(x=>'<div>'+ic(x.ic)+'<span><b>'+esc(x.t)+'</b>'+esc(x.x)+'</span></div>').join('')+'</div>'+
     '<p class="felic-a">'+esc(pick(ANIMO))+'</p>'+
-    '<p class="pts-gan">+'+nv.puntos.toLocaleString('es-ES')+'<small>puntos esta ronda · tienes '+L.saldo.toLocaleString('es-ES')+'</small></p>'+
+    '<p class="pts-gan">+'+nv.puntos.toLocaleString('es-ES')+'<small>puntos '+(donde||'esta ronda')+' · tienes '+L.saldo.toLocaleString('es-ES')+'</small></p>'+
     '<button class="btn" data-a="cerrar">¡Seguir!</button></div>');
 }
 
@@ -834,16 +948,22 @@ function medallasHTML(L){
   const fila=x=>{
     const m=x.m,ok=x.veces>0;
     const sig=m.cada?(m.cada-(x.valor%m.cada)):Math.max(0,m.meta-x.valor);
-    const det=m.cada?(ok?'×'+x.veces+' · próxima en '+plural(sig,'día','días'):'Faltan '+plural(sig,'día','días')):
+    const det=m.cada===1?(ok?'×'+x.veces:m.txt):m.cada?(ok?'×'+x.veces+' · próxima en '+plural(sig,'día','días'):'Faltan '+plural(sig,'día','días')):
       ok?'+'+m.pts+' puntos':(m.grupo==='otras'&&m.id==='primera'?m.txt:'Llevas '+Math.min(x.valor,m.meta)+' de '+m.meta);
     return '<div class="med'+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b><small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
   };
-  const grupos=[['dias','Días hechos'],['racha','Días seguidos'],['combo','Aciertos seguidos'],['tiempo','Tiempo jugando'],['otras','Otras']];
+  const grupos=[['dias','Días hechos'],['racha','Días seguidos'],['combo','Aciertos seguidos'],['crea','Creando preguntas'],['tiempo','Tiempo jugando'],['otras','Otras']];
   return '<section class="sec-block"><h2>Medallas</h2>'+grupos.map(([g,t])=>'<p class="res-t">'+t+'</p><div class="meds">'+L.medallas.filter(x=>x.m.grupo===g).map(fila).join('')+'</div>').join('')+'</section>';
 }
 function premios(){return (Datos.premios&&Datos.premios.length?Datos.premios:PREMIOS_BASE).filter(p=>p.nombre&&+p.puntos>0).slice().sort((a,b)=>a.puntos-b.puntos)}
+/* «unos 12 días a tu ritmo» */
+function cuandoLlega(falta,L){
+  if(!(L.ritmo>=10))return '';
+  const d=Math.ceil(falta/L.ritmo);
+  return d>400?'':' · '+(d<=1?'mañana':d<=60?'unos '+d+' días':'unos '+Math.round(d/30)+' meses')+' a tu ritmo';
+}
 function premiosHTML(L){
-  const C=(Datos.canjes||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const C=Datos.canjesVigentes().slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   const pend=C.filter(c=>c.estado==='pendiente'),hechos=C.filter(c=>c.estado==='entregado');
   let h='<section class="sec-block" id="premios"><h2>Premios</h2>'+
     '<p class="saldo"><b>'+L.saldo.toLocaleString('es-ES')+'</b> puntos para canjear</p>';
@@ -852,8 +972,12 @@ function premiosHTML(L){
     '<button class="link" data-a="confirmarCanje" data-id="'+esc(c.id)+'">Confirmar</button></div>').join('')+'</div>';
   h+='<p class="res-t">Elige un premio</p><div>'+premios().map(p=>{
     const falta=p.puntos-L.saldo;
-    return '<div class="ses premio"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
-      (falta>0?'<span class="falta">Te faltan '+falta.toLocaleString('es-ES')+'</span>':'<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button>')+'</div>';
+    if(falta<=0)return '<div class="ses premio"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
+      '<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button></div>';
+    const pc=Math.max(0,Math.min(99,Math.floor(L.saldo/p.puntos*100)));
+    return '<div class="ses premio lejos"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+pc+'%</span></div>'+
+      '<div class="linea" aria-hidden="true"><i style="width:'+pc+'%"></i></div>'+
+      '<small>'+Math.max(0,L.saldo).toLocaleString('es-ES')+' de '+(+p.puntos).toLocaleString('es-ES')+' · te faltan '+falta.toLocaleString('es-ES')+cuandoLlega(falta,L)+'</small></div></div>';
   }).join('')+'</div>';
   if(hechos.length)h+='<p class="res-t">Ya conseguidos</p><div>'+hechos.slice(0,8).map(c=>'<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.resuelto||c.fecha)+'</small></span><span>'+ic('check')+'</span></div>').join('')+'</div>';
   return h+'</section>';
@@ -870,7 +994,31 @@ function renderLogros(){
     calendario(L)+medallasHTML(L)+premiosHTML(L)+
     '<details class="ver-texto"><summary>Cómo se ganan puntos</summary><ul class="reglas">'+
       '<li><b>'+PUNTOS.acierto+'</b> por cada acierto</li><li><b>+'+PUNTOS.recuperada+'</b> si aciertas una que habías fallado</li>'+
-      '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li><li>Cada medalla da puntos extra</li></ul></details>';
+      '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li>'+
+      '<li><b>'+SUBIR.pregunta+'</b> por cada pregunta nueva que subas (hasta '+SUBIR.topeTemaDia+' por tema y día)</li>'+
+      '<li><b>+'+SUBIR.tema+'</b> por cada tema nuevo con al menos '+SUBIR.minTema+' preguntas</li>'+
+      '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
+      '<li>Cada medalla da puntos extra</li></ul></details>';
+}
+/* Empezar de cero (con el PIN): todo lo anterior deja de contar, pero no se borra */
+function reinicio(){
+  const ini=Datos.inicio;
+  abrirModal('<p class="eyebrow">Solo para papá o mamá</p><h2 id="mTit" class="m-tit">¿Empezar de cero los puntos?</h2>'+
+    '<p>Las rondas, la racha, las medallas, los puntos y los premios pedidos hasta ahora dejarán de contar. Las preguntas no se tocan.</p>'+
+    '<p>No se borra nada: si te equivocas, aquí mismo se puede deshacer.</p>'+
+    '<div class="field"><label class="lbl-f" for="pin">PIN</label><input class="in" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>'+
+    '<div class="stack"><button class="btn" data-a="hacerReinicio">'+ic('refresh')+'Empezar de cero</button>'+
+    (ini?'<button class="btn sec" data-a="hacerReinicio" data-deshacer="1">Deshacer: volver a contar todo</button>':'')+
+    '<button class="link" data-a="cerrar">Cancelar</button></div>');
+  const i=$('#pin');if(i)i.focus();
+}
+async function hacerReinicio(el){
+  const pin=norm(($('#pin')||{}).value),des=!!el.dataset.deshacer;
+  if(!pin){toast('Escribe el PIN.');$('#pin').focus();return}
+  try{
+    await servidorPost({accion:'reiniciar',pin,deshacer:des});
+    await Datos.cargar(true);cerrarModal();renderPreguntas();toast(des?'Hecho: vuelve a contar todo.':'Hecho: los puntos empiezan de cero.');
+  }catch(e){toast(/pin/i.test(e.message)?'El PIN no es correcto.':/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido: '+e.message+'.')}
 }
 async function canjear(el){
   const p=premios().find(x=>String(x.id)===el.dataset.id),L=calcularLogros();
@@ -884,7 +1032,7 @@ async function canjear(el){
 }
 function confirmarCanje(el){
   const c=(Datos.canjes||[]).find(x=>String(x.id)===el.dataset.id);if(!c)return;
-  abrirModal('<p class="eyebrow">Solo para papá o mamá</p><h2 id="mTit" style="font-size:20px;text-transform:none;letter-spacing:0">'+esc(c.nombre)+'</h2>'+
+  abrirModal('<p class="eyebrow">Solo para papá o mamá</p><h2 id="mTit" class="m-tit">'+esc(c.nombre)+'</h2>'+
     '<p>'+(+c.puntos).toLocaleString('es-ES')+' puntos · pedido el '+fechaHora(c.fecha)+'</p>'+
     '<div class="field"><label class="lbl-f" for="pin">PIN</label><input class="in" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>'+
     '<div class="stack"><button class="btn" data-a="resolverCanje" data-id="'+esc(c.id)+'" data-e="entregado">'+ic('check')+'Entregado</button>'+
@@ -930,6 +1078,8 @@ function renderPreguntas(){
     '<button class="lbtn" data-a="nombres">'+ic('list')+'<span>Cursos, asignaturas y temas<small>'+(repes?'<span class="e">'+plural(repes,'nombre parece repetido','nombres parecen repetidos')+'</span> · ':'')+'Unir nombres escritos de dos formas</small></span></button>'+
     '<button class="lbtn" data-a="exportarTodo">'+ic('download')+'<span>Descargar todas las preguntas<small>Copia de seguridad en un archivo XML</small></span></button>'+
     '<button class="lbtn" data-a="plantilla">'+ic('download')+'<span>Descargar plantilla XML<small>Ejemplo del formato</small></span></button>'+
+    '<button class="lbtn" data-a="reinicio">'+ic('refresh')+'<span>Empezar de cero los puntos<small>'+
+      (Datos.inicio?'Cuentan desde el '+fecha(Datos.inicio)+' · se puede deshacer':'Quita las rondas de prueba: puntos, racha y medallas')+'</small></span></button>'+
     '<button class="lbtn" data-a="exportarRes">'+ic('download')+'<span>Descargar resultados<small>Todas las rondas en un archivo</small></span></button>'+
     '</div></section>';
   h+='<p class="nota">rePEPAso · versión '+VERSION+'</p>';
@@ -1194,13 +1344,19 @@ async function subirImp(){
   const r=E.rev;if(!r||!r.res)return;
   try{
     for(const o of r.reabrir||[])await servidorPost({accion:'quitarAlias',id:o.id});
+    const antes=calcularLogros();
     await subirXML(r.lista,nombreDe(r.lista,E.imp));
+    const despues=calcularLogros(),nv=novedades(antes,despues);
     const n=r.lista.length,q=r.lista[0];
     E.imp.xml='';E.imp.extra='';E.rev=null;E.imp.paso=1;guardarImp();
     if(q){E.filtro={curso:q.curso,asignatura:q.asignatura,tema:q.tema};ls.set(LS.filtro,E.filtro)}
     renderImportar();
-    abrirModal('<p class="eyebrow">Hecho</p><h1 id="mTit">'+plural(n,'pregunta guardada','preguntas guardadas')+'</h1><p>Ya están en el quiz, en todos los dispositivos.</p>'+
-      '<div class="stack"><button class="btn" data-a="cerrarInicio">Empezar a repasar '+ic('arrow')+'</button><button class="btn sec" data-a="cerrar">Crear más preguntas</button></div>');
+    const fin='<div class="stack"><button class="btn" data-a="cerrarInicio">Empezar a repasar '+ic('arrow')+'</button><button class="btn sec" data-a="cerrar">Crear más preguntas</button></div>';
+    if(nv.puntos>0&&logrosDe(nv,despues).length){
+      modalLogros(nv,despues,'por subirlas');
+      const b=$('#modal .felic>.btn');if(b)b.outerHTML='<p class="hint" style="margin:-8px 0 16px">'+plural(n,'pregunta guardada','preguntas guardadas')+' en todos los dispositivos.</p>'+fin;
+    }else abrirModal('<p class="eyebrow">Hecho</p><h1 id="mTit">'+plural(n,'pregunta guardada','preguntas guardadas')+'</h1><p>Ya están en el quiz, en todos los dispositivos.</p>'+
+      (nv.puntos>0?'<p class="pts-gan" style="color:var(--ink)">+'+nv.puntos+'<small>puntos</small></p>':'')+fin);
   }catch(e){toast('No se ha podido guardar: '+e.message+'.')}
 }
 
@@ -1513,7 +1669,7 @@ const A={
   inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),logros:()=>{cerrarModal();E.mes=0;ir('logros')},
   mesAnt:()=>{E.mes--;renderLogros();const b=$('[data-a=mesAnt]');if(b)b.focus()},
   mesSig:()=>{if(E.mes<0)E.mes++;renderLogros();const b=$('[data-a='+(E.mes<0?'mesSig':'mesAnt')+']');if(b)b.focus()},
-  canjear,confirmarCanje,resolverCanje,preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
+  canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
   editor:()=>ir('editor'),
   editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},
   salir:()=>{if(confirm('¿Salir de la ronda? Se perderá lo que llevas.'))ir('inicio')},
