@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='4';
+const VERSION='5';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -51,16 +51,59 @@ function normEscrita(s,conTildes){
   return t.replace(ARTICULOS,'');
 }
 const comoNumero=s=>{const t=norm(s).replace(/\s/g,'').replace(',','.');return /^[-+]?\d+(\.\d+)?$/.test(t)?parseFloat(t):null};
-function evaluarEscrita(valor,respuestas){
+/* Corrección tolerante de la respuesta escrita.
+   Devuelve {ok, tipo, forma}:  tipo = 'exacto' | 'tilde' | 'orto' (falta de ortografía) | 'parcial' (más corta que la completa)
+   - Los números se comparan como números y nunca se aproximan.
+   - Puede sobrar o faltar alguna palabra («comunicación no verbal» ↔ «no verbal»), pero nunca un «no», «sin», «ni»…
+   - Faltas que suenan igual (b/v, h, ll/y, c/z/s, g/j, qu/k) y erratas de una letra en palabras largas se aceptan avisando.
+   - Si la pregunta es de ortografía (exacta="si"), solo se perdona la tilde. */
+const NEGACIONES=new Set(['no','ni','sin','nunca','jamas','tampoco','nada','nadie','ningun','ninguna','ninguno']);
+const VACIAS=new Set(['el','la','los','las','un','una','unos','unas','lo','de','del','al','a','y','e','o','u','en','que','se','es','son','por','para','con','su','sus']);
+const palabrasDe=s=>normEscrita(s,false).split(/[^a-z0-9ñ]+/).filter(Boolean);
+function fonetica(w){
+  return w.replace(/ch/g,'§').replace(/h/g,'').replace(/ll/g,'y').replace(/[vw]/g,'b')
+    .replace(/qu(?=[ei])/g,'k').replace(/gu(?=[ei])/g,'g').replace(/g(?=[ei])/g,'j')
+    .replace(/c(?=[ei])/g,'s').replace(/z/g,'s').replace(/c/g,'k').replace(/q/g,'k')
+    .replace(/§/g,'ch').replace(/(.)\1+/g,'$1');
+}
+function compararPalabra(a,b){
+  if(a===b)return 'exacto';
+  if(/\d/.test(a)||/\d/.test(b))return '';
+  const fa=fonetica(a),fb=fonetica(b);
+  if(fa===fb)return 'orto';
+  const L=Math.max(a.length,b.length);
+  if(L>=6&&distancia(fa,fb)<=(L>=10?2:1))return 'orto';
+  return '';
+}
+function evaluarEscrita(valor,respuestas,exacta){
   const v=norm(valor);if(!v)return {ok:false};
   const nv=comoNumero(v);
   for(const r of respuestas){
     const nr=comoNumero(r);
-    if(nv!==null&&nr!==null&&Math.abs(nv-nr)<1e-9)return {ok:true};
-    if(normEscrita(v,true)===normEscrita(r,true))return {ok:true};
+    if(nr!==null){if(nv!==null&&Math.abs(nv-nr)<1e-9)return {ok:true,tipo:'exacto',forma:r};continue}
+    if(normEscrita(v,true)===normEscrita(r,true))return {ok:true,tipo:'exacto',forma:r};
   }
-  for(const r of respuestas)if(normEscrita(v,false)===normEscrita(r,false))return {ok:true,tilde:r};
-  return {ok:false};
+  for(const r of respuestas)if(comoNumero(r)===null&&normEscrita(v,false)===normEscrita(r,false))return {ok:true,tipo:'tilde',forma:r};
+  if(exacta)return {ok:false};
+  let mejor=null;
+  for(const r of respuestas){
+    if(comoNumero(r)!==null)continue;
+    const V=palabrasDe(v),R=palabrasDe(r);
+    const neg=x=>x.filter(w=>NEGACIONES.has(w)).sort().join(' ');
+    if(neg(V)!==neg(R))continue;
+    const Vc=V.filter(w=>!VACIAS.has(w)),Rc=R.filter(w=>!VACIAS.has(w));
+    if(!Vc.length||!Rc.length)continue;
+    let orto=false;
+    const casa=(w,lista)=>{for(const x of lista){const c=compararPalabra(w,x);if(c){if(c==='orto')orto=true;return true}}return false};
+    const rCubiertas=Rc.filter(w=>casa(w,Vc)).length,vCubiertas=Vc.filter(w=>casa(w,Rc)).length;
+    let tipo='';
+    if(rCubiertas===Rc.length&&Vc.length-vCubiertas<=2)tipo=orto?'orto':'exacto';                 /* están todas (puede sobrar alguna) */
+    else if(vCubiertas===Vc.length&&rCubiertas*2>=Rc.length)tipo='parcial';                        /* más corta, pero lo esencial está */
+    /* entre varias formas válidas, la que más se parece a lo escrito */
+    const dif=(Vc.length-vCubiertas)+(Rc.length-rCubiertas),rango=(tipo==='exacto'?0:tipo==='orto'?1:2)*100+dif;
+    if(tipo&&(!mejor||rango<mejor.rango))mejor={ok:true,tipo,forma:r,orto,rango};
+  }
+  return mejor||{ok:false};
 }
 
 /* ---------- nombres: mismo curso/asignatura/tema aunque se escriban distinto ---------- */
@@ -246,7 +289,7 @@ function leerPregunta(n){
   const q={id:norm(n.getAttribute('id')),curso,asignatura,tema,enunciado,
     opciones:escrita?[]:ops.map(o=>o.t),correcta:escrita?-1:ops.findIndex(o=>o.c),nCorrectas:escrita?0:ops.filter(o=>o.c).length,
     explicacion:ex?norm(ex.textContent):''};
-  if(escrita){q.tipo='escrita';q.respuestas=escritas}
+  if(escrita){q.tipo='escrita';q.respuestas=escritas;q.exacta=SI.test((n.getAttribute('exacta')||'').trim())}
   if(!q.id){q.id=idDe(q);q.idAuto=true}
   return q;
 }
@@ -265,7 +308,7 @@ function errorDe(q){
 }
 function limpiar(q){
   if(q.tipo==='escrita')return {id:q.id,idAuto:!!q.idAuto,tipo:'escrita',curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
-    opciones:[],correcta:-1,respuestas:unicosOrden((q.respuestas||[]).map(norm).filter(Boolean)),explicacion:norm(q.explicacion)};
+    opciones:[],correcta:-1,respuestas:unicosOrden((q.respuestas||[]).map(norm).filter(Boolean)),exacta:!!q.exacta,explicacion:norm(q.explicacion)};
   const keep=[];q.opciones.forEach((o,i)=>{if(norm(o))keep.push(i)});
   return {id:q.id,idAuto:!!q.idAuto,curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
     opciones:keep.map(i=>norm(q.opciones[i])),correcta:keep.indexOf(q.correcta),explicacion:norm(q.explicacion)};
@@ -297,7 +340,7 @@ function aXML(P){
           if(esVF(q)){
             out.push('        <pregunta id="'+x(q.id)+'" respuesta="'+(q.correcta===0?'verdadero':'falso')+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
           }else if(q.tipo==='escrita'){
-            out.push('        <pregunta id="'+x(q.id)+'" tipo="escrita">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+            out.push('        <pregunta id="'+x(q.id)+'" tipo="escrita"'+(q.exacta?' exacta="si"':'')+'>','          <enunciado>'+x(q.enunciado)+'</enunciado>');
             q.respuestas.forEach(r=>out.push('          <respuesta>'+x(r)+'</respuesta>'));
           }else{
             out.push('        <pregunta id="'+x(q.id)+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
@@ -416,7 +459,7 @@ const splash=(peq)=>'<div class="splash'+(peq?' peq':'')+'" role="status">'+(peq
   '<div class="linea carga-linea" aria-hidden="true"><i></i></div><p class="splash-t">Cargando…</p><p class="splash-f">'+FRASE+'</p></div>';
 
 /* ---------- estado y navegación ---------- */
-const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
+const E={soloFallos:ls.get('repaso.soloFallos.v1',false),pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
   imp:Object.assign(ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),{extra:''}),rev:null};
 const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres(),nombre:()=>renderNombre()};
 function ir(p){
@@ -453,12 +496,13 @@ function renderInicio(){
     return;
   }
   validarFiltro(P);
-  const f=E.filtro,L=listas(P,f),disp=P.filter(q=>cumple(q,f)).length;
+  const f=E.filtro,L=listas(P,f),F=falladas(),enFiltro=P.filter(q=>cumple(q,f)),nFallos=enFiltro.filter(q=>F.has(q.id)).length;
+  const disp=E.soloFallos?nFallos:enFiltro.length;
   const sel=(id,label,todos,lista,val)=>'<div class="field"><label class="lbl-f" for="'+id+'">'+label+'</label><select class="in" id="'+id+'"><option value="'+TODOS+'">'+todos+'</option>'+
     lista.map(v=>'<option value="'+esc(v)+'"'+(v===val?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select></div>';
   app.innerHTML=avisoConexion()+
     (Datos.extra.length?aviso('info','Estás probando '+plural(Datos.extra.length,'pregunta nueva','preguntas nuevas')+' que aún no están subidas. <button class="link" data-a="quitarExtra">Dejar de probar</button>'):'')+
-    '<p class="eyebrow">re<b>PEPA</b>so</p><h1>¿Qué repasamos hoy?</h1><p class="sub">Elige un tema o déjalo todo en «Todos» para mezclar.</p>'+
+    '<p class="eyebrow">Hola, Pepa</p><h1>¿Qué repasamos hoy?</h1><p class="sub">Elige un tema o déjalo todo en «Todos» para mezclar.</p>'+
     '<div class="box">'+
       sel('fCurso','Curso','Todos los cursos',L.cursos,f.curso)+
       sel('fAsig','Asignatura','Todas las asignaturas',L.asigs,f.asignatura)+
@@ -466,6 +510,8 @@ function renderInicio(){
       '<div class="field"><span class="lbl-f" id="lblNum">Número de preguntas</span><div class="chips" role="group" aria-labelledby="lblNum">'+
         [[5,'5'],[10,'10'],[20,'20'],[0,'Todas']].map(n=>'<button class="chip" data-n="'+n[0]+'" aria-pressed="'+(E.num===n[0])+'">'+n[1]+'</button>').join('')+
       '</div></div>'+
+      '<button class="switch" role="switch" data-a="soloFallos" aria-checked="'+E.soloFallos+'"><span>Solo las que he fallado<small>'+
+        (nFallos?plural(nFallos,'pregunta pendiente de acertar','preguntas pendientes de acertar'):'No tienes fallos pendientes aquí')+'</small></span><span class="pista" aria-hidden="true"></span></button>'+
     '</div>'+
     '<p class="count"><b>'+disp+'</b> '+(disp===1?'pregunta disponible':'preguntas disponibles')+'</p>'+
     '<button class="btn" id="go"'+(disp?'':' disabled')+'>Empezar '+ic('arrow')+'</button>';
@@ -475,7 +521,16 @@ function renderInicio(){
   app.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{E.num=+b.dataset.n;ls.set(LS.num,E.num);renderInicio();app.querySelector('.chip[data-n="'+E.num+'"]').focus()});
   $('#go').onclick=()=>empezar(ronda(f));
 }
-function ronda(f){let p=barajar(Datos.todas().filter(q=>cumple(q,f)));if(E.num)p=p.slice(0,E.num);return p}
+/* Preguntas cuya última respuesta fue un fallo (en cuanto se aciertan, salen de la lista) */
+function falladas(){
+  const ult=new Map();
+  Datos.resultados().forEach(r=>(r.detalle||[]).forEach(d=>{if(d&&d.id)ult.set(d.id,!!d.ok)}));
+  const out=new Set();ult.forEach((ok,id)=>{if(!ok)out.add(id)});return out;
+}
+function ronda(f){
+  const F=E.soloFallos?falladas():null;
+  let p=barajar(Datos.todas().filter(q=>cumple(q,f)&&(!F||F.has(q.id))));if(E.num)p=p.slice(0,E.num);return p;
+}
 
 /* ================= PREGUNTA ================= */
 function empezar(lista){
@@ -514,23 +569,32 @@ function responder(oi){
     else if(o===oi){b.classList.add('ko');b.querySelector('.l').innerHTML=ic('x')}
     else b.classList.add('dim');
   });
-  feedback(s,q,ok,'');
+  feedback(s,q,ok,'',q.opciones[oi]);
 }
 /* Respuesta escrita */
 function responderEscrita(valor){
   const s=E.sesion,q=s.preguntas[s.i].q;if(s.resp[s.i])return;
-  const r=evaluarEscrita(valor,q.respuestas||[]);
+  const r=evaluarEscrita(valor,q.respuestas||[],q.exacta);
   s.resp[s.i]={escrita:valor,ok:r.ok};
   const inp=$('#rEsc');inp.disabled=true;inp.classList.add(r.ok?'ok':'ko');
   const b=app.querySelector('#fEsc .btn');if(b)b.remove();
-  feedback(s,q,r.ok,r.tilde?'<p class="fb-r">Fíjate en la tilde: se escribe <b>'+esc(r.tilde)+'</b>.</p>':'');
+  const f=r.forma?'<b>'+esc(r.forma)+'</b>':'';
+  const nota=r.tipo==='tilde'?'Fíjate en la tilde: se escribe '+f+'.':
+    r.tipo==='orto'||(r.tipo==='parcial'&&r.orto)?'Bien, pero fíjate en cómo se escribe: '+f+'.':
+    r.tipo==='parcial'?'La respuesta completa es '+f+'.':'';
+  feedback(s,q,r.ok,nota?'<p class="fb-nota">'+nota+'</p>':'',valor);
 }
-function feedback(s,q,ok,extra){
+/* Explicación en párrafos; «Por ejemplo…» va aparte */
+function explicacionHTML(t){
+  t=norm(t);if(!t)return '';
+  return t.split(/(?=Por ejemplo[,:])|\n+/i).map(x=>norm(x)).filter(Boolean).map(x=>/^Por ejemplo/i.test(x)?'<p class="fb-ej">'+esc(x)+'</p>':'<p>'+esc(x)+'</p>').join('');
+}
+function feedback(s,q,ok,extra,tuya){
   const ultima=s.i===s.preguntas.length-1;
   app.querySelector('.linea>i').style.width=((s.i+1)/s.preguntas.length*100)+'%';
   $('#fb').innerHTML='<div class="fb'+(ok?'':' ko')+'"><div class="fb-t">'+ic(ok?'check':'x')+(ok?pick(BIEN):'No es correcta')+'</div>'+extra+
-    (ok?'':'<p class="fb-r">La respuesta correcta es <b>'+esc(correctaDe(q))+'</b>.</p>')+
-    (q.explicacion?'<p class="fb-x">'+esc(q.explicacion)+'</p>':'')+'</div>'+
+    (ok?'':'<dl class="fb-cmp">'+(norm(tuya)?'<div><dt>Tu respuesta</dt><dd>'+esc(tuya)+'</dd></div>':'')+'<div><dt>La correcta</dt><dd><b>'+esc(correctaDe(q))+'</b></dd></div></dl>')+
+    (q.explicacion?'<div class="fb-exp"><p class="eyebrow">Para entenderlo</p>'+explicacionHTML(q.explicacion)+'</div>':'')+'</div>'+
     '<button class="btn" id="sig" style="margin-top:16px">'+(ultima?'Ver resultado':'Siguiente')+' '+ic('arrow')+'</button>';
   const sig=$('#sig');
   sig.onclick=()=>{if(ultima)terminar();else{s.i++;renderPregunta()}};
@@ -558,7 +622,7 @@ function renderResultado(reg){
     '<p class="big">'+reg.aciertos+'/'+reg.total+'<small>'+p+'%</small></p>'+
     '<div class="linea" aria-hidden="true" style="margin-bottom:24px"><i style="width:'+p+'%"></i></div>'+
     '<h1>'+msg[0]+'</h1><p class="sub">'+msg[1]+'</p>'+
-    (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(correctaDe(q))+'</span></div>').join('')+'</div></section>':'')+
+    (fallos.length?'<section class="sec-block"><h2>Para repasar</h2><div class="lista">'+fallos.map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(correctaDe(q))+'</span>'+(q.explicacion?'<span class="fallo-x">'+esc(q.explicacion)+'</span>':'')+'</div>').join('')+'</div></section>':'')+
     '<div class="stack">'+
       (fallos.length?'<button class="btn" id="rep">'+ic('repeat')+' Repetir los fallos ('+fallos.length+')</button>':'')+
       '<button class="btn'+(fallos.length?' sec':'')+'" id="otra">Otra ronda</button>'+
@@ -650,7 +714,7 @@ function promptTexto(){
     reglas.push('- Preguntas tipo test: 4 opciones y solo UNA correcta. Las incorrectas deben ser creíbles.');
     ejemplo.push('        <pregunta>','          <enunciado>Texto de la pregunta</enunciado>','          <opcion correcta="si">Respuesta correcta</opcion>',
       '          <opcion>Respuesta incorrecta</opcion>','          <opcion>Respuesta incorrecta</opcion>','          <opcion>Respuesta incorrecta</opcion>',
-      '          <explicacion>Por qué es la correcta</explicacion>','        </pregunta>');
+      '          <explicacion>Por qué es la correcta, explicado para aprender. Por ejemplo: un ejemplo sencillo si ayuda.</explicacion>','        </pregunta>');
   }
   if(T.indexOf('vf')>=0){
     reglas.push('- Preguntas de verdadero o falso: escribe respuesta="verdadero" o respuesta="falso".');
@@ -658,7 +722,7 @@ function promptTexto(){
       '          <explicacion>Por qué</explicacion>','        </pregunta>');
   }
   if(T.indexOf('escrita')>=0){
-    reglas.push('- Preguntas de respuesta escrita: solo cuando la respuesta sea muy corta (una palabra o un número) y sin dudas. En <respuesta> pon la forma correcta y, en otras <respuesta>, las demás formas válidas (por ejemplo «3» y «tres»).');
+    reglas.push('- Preguntas de respuesta escrita: solo cuando la respuesta sea corta (una o pocas palabras, o un número) y sin dudas. En <respuesta> pon la forma correcta y, en otras <respuesta>, las demás formas válidas: la corta y la larga (por ejemplo «no verbal» y «comunicación no verbal»), o «3» y «tres». Si la pregunta trata de cómo se escribe una palabra (ortografía), añade exacta="si" a la <pregunta>.');
     ejemplo.push('        <pregunta tipo="escrita">','          <enunciado>¿Cuál es la raíz cuadrada de 9?</enunciado>','          <respuesta>3</respuesta>',
       '          <respuesta>tres</respuesta>','          <explicacion>Porque 3 × 3 = 9</explicacion>','        </pregunta>');
   }
@@ -675,7 +739,7 @@ solo
 '',
 'Reglas:',
 '- Lenguaje claro y adecuado a '+c+'.',
-'- Cada pregunta lleva una explicación corta, de una frase.',
+'- Cada pregunta lleva una <explicacion> pensada para quien se ha equivocado y quiere aprender: 2 o 3 frases claras que expliquen por qué la respuesta correcta es la buena (y, si ayuda, por qué la confusión típica no lo es). Si sirve para entenderlo mejor, añade un ejemplo sencillo empezando por «Por ejemplo:».',
 '- Mezcla preguntas fáciles y difíciles, sin repetir ninguna.',
 '',
 'Responde SOLO con el XML dentro de un único bloque de código (```xml), sin texto antes ni después, con este formato exacto:',
@@ -1013,7 +1077,7 @@ function preguntaVacia(ed,base){return {id:nuevoId(),curso:ed?ed.curso:'',asigna
 function edNuevo(){const ed={nombre:'',curso:'',asignatura:'',mixto:false,subidaId:'',preguntas:[]};ed.preguntas.push(preguntaVacia(ed));return ed}
 function edDesde(todas,nombre,subidaId){
   const qs=todas.map(q=>{
-    if(q.tipo==='escrita')return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:'escrita',opciones:[],correcta:-1,respuestas:(q.respuestas&&q.respuestas.length?q.respuestas:['']).slice(),explicacion:q.explicacion||''};
+    if(q.tipo==='escrita')return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:'escrita',opciones:[],correcta:-1,respuestas:(q.respuestas&&q.respuestas.length?q.respuestas:['']).slice(),exacta:!!q.exacta,explicacion:q.explicacion||''};
     const vf=esVF(q),ops=q.opciones.slice();
     while(!vf&&ops.length<2)ops.push('');
     return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:vf?'vf':'opciones',opciones:ops,correcta:q.correcta,explicacion:q.explicacion||''};
@@ -1039,7 +1103,8 @@ function qHTML(q,i){
     const rs=q.respuestas&&q.respuestas.length?q.respuestas:[''];
     resp=rs.map((r,k)=>'<div class="oprow"><input class="in" data-q="'+i+'" data-r="'+k+'" value="'+esc(r)+'" placeholder="'+(k?'Otra forma válida (opcional)':'Respuesta correcta')+'" aria-label="Pregunta '+(i+1)+', respuesta válida '+(k+1)+'" autocapitalize="off" autocorrect="off" spellcheck="false">'+
       (rs.length>1?'<button class="del"'+k0('delr',' data-o="'+k+'"')+' aria-label="Quitar respuesta válida '+(k+1)+'">'+ic('x')+'</button>':'')+'</div>').join('')+
-      '<p class="hint">Se aceptan mayúsculas o minúsculas y sin artículo. Si vale de varias formas, añádelas (por ejemplo «3» y «tres»).</p>'+
+      '<p class="hint">Se aceptan mayúsculas o minúsculas, sin artículo y con pequeñas faltas (avisando). Si vale de varias formas, añádelas (por ejemplo «3» y «tres»).</p>'+
+      '<div class="chips" style="margin:8px 0"><button class="chip"'+k0('exacta')+' aria-pressed="'+!!q.exacta+'">Ortografía exacta (no perdonar faltas)</button></div>'+
       (rs.length<6?'<button class="link"'+k0('addr')+'>'+ic('plus')+'Añadir otra forma válida</button>':'');
   }else if(q.tipo==='vf'){
     resp='<div class="chips" role="group" aria-label="Respuesta correcta de la pregunta '+(i+1)+'">'+['Verdadero','Falso'].map((t,k)=>'<button class="chip"'+k0('vf',' data-o="'+k+'"')+' aria-pressed="'+(q.correcta===k)+'">'+t+'</button>').join('')+'</div><p class="hint">Marca cuál es la correcta.</p>';
@@ -1142,6 +1207,7 @@ function accionEditor(b){
       q.tipo=b.dataset.v;break;
     case 'addr':q.respuestas.push('');foco='input[data-q="'+i+'"][data-r="'+(q.respuestas.length-1)+'"]';break;
     case 'delr':q.respuestas.splice(k,1);break;
+    case 'exacta':q.exacta=!q.exacta;break;
   }
   guardarBorrador();
   const sel='[data-ed="'+a+'"][data-q="'+i+'"]'+(b.dataset.o!=null?'[data-o="'+k+'"]':'')+(b.dataset.v?'[data-v="'+b.dataset.v+'"]':'');
@@ -1229,6 +1295,7 @@ const A={
     ir('inicio');toast('Probando '+plural(Datos.extra.length,'pregunta','preguntas')+' sin subirlas.');
   },
   usarNombre:el=>{const t=el.dataset.t;E.imp[t]=el.dataset.v;guardarImp();const inp=$('[data-imp="'+t+'"]');if(inp)inp.value=el.dataset.v;ponerPrompt();sugerirNombre(t);if(t!=='tema')sugerirNombre('tema')},
+  soloFallos:()=>{E.soloFallos=!E.soloFallos;ls.set('repaso.soloFallos.v1',E.soloFallos);renderInicio();const b=$('[data-a=soloFallos]');if(b)b.focus()},
   nombres:()=>ir('nombres'),
   verNombre:el=>{E.nom={tipo:el.dataset.t,ctx:el.dataset.ctx,nombre:el.dataset.de};ir('nombre')},
   guardarNombre:()=>cambiarNombre(),
