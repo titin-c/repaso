@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='3';
+const VERSION='4';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -417,7 +417,7 @@ const splash=(peq)=>'<div class="splash'+(peq?' peq':'')+'" role="status">'+(peq
 
 /* ---------- estado y navegación ---------- */
 const E={pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
-  imp:ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),rev:null};
+  imp:Object.assign(ls.get(LS.imp,{curso:'',asignatura:'',tema:'',n:10,xml:''}),{extra:''}),rev:null};
 const PANT={inicio:()=>renderInicio(),progreso:()=>renderProgreso(),preguntas:()=>renderPreguntas(),editor:()=>renderEditor(),importar:()=>renderImportar(),nombres:()=>renderNombres(),nombre:()=>renderNombre()};
 function ir(p){
   E.pant=p;E.sesion=null;PANT[p]();
@@ -639,7 +639,8 @@ async function actualizar(){
 }
 
 /* ================= AÑADIR PREGUNTAS CON IA ================= */
-function guardarImp(){ls.set(LS.imp,E.imp)}
+/* Las indicaciones extra no se guardan nunca: solo valen para la tanda que se está creando */
+function guardarImp(){const c=Object.assign({},E.imp);delete c.extra;ls.set(LS.imp,c)}
 const TIPOS_IMP=[['test','Test'],['vf','Verdadero o falso'],['escrita','Respuesta escrita']];
 function tiposImp(){const t=(E.imp.tipos||[]).filter(x=>TIPOS_IMP.some(y=>y[0]===x));return t.length?t:['test','vf']}
 function promptTexto(){
@@ -759,42 +760,36 @@ function copiarTexto(t){
   if(!ok&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>{},()=>{});ok=true}
   return ok;
 }
+/* Paso 2: solo la caja para pegar y un botón. Con la caja vacía el botón pega; con algo pegado, continúa. */
 function renderPaso2(){
-  const ia=iaSel(),ok=E.imp.copiado!==false;
+  const ia=iaSel();
   app.innerHTML=cabImportar()+
-    (ok?'<div class="aviso ok">'+ic('check')+'<div><b>Texto copiado.</b> Se ha abierto '+esc(ia.n)+' en otra pestaña.</div></div>'
-       :aviso('info','No se ha podido copiar solo. Pulsa «Copiar el texto otra vez».'))+
-    '<ol class="instr">'+
-      '<li>En '+esc(ia.n)+', mantén pulsado el cuadro de escribir y elige <b>Pegar</b>.</li>'+
-      '<li>Si quieres, adjunta fotos del libro con el <b>+</b>. Después, envía.</li>'+
-      '<li>Cuando termine, pulsa el botón de <b>copiar</b> del bloque de código (arriba a la derecha del XML).</li>'+
-      '<li>Vuelve aquí y pulsa <b>Pegar respuesta</b>.</li>'+
-    '</ol>'+
-    '<div class="stack"><button class="btn" data-a="pegarResp">'+ic('paste')+'Pegar respuesta</button>'+
-      '<a class="btn sec" href="'+ia.url+'" target="_blank" rel="noopener">'+ic('external')+'Abrir '+esc(ia.n)+' otra vez</a>'+
-      '<button class="btn sec" data-a="copiarPrompt">'+ic('copy')+'Copiar el texto otra vez</button></div>'+
-    '<details class="ver-texto" id="manual"'+(E.imp.manual?' open':'')+'><summary>¿No funciona el botón? Pégalo aquí</summary>'+
-      '<label class="sr" for="iXml">Respuesta de la IA</label><textarea class="in pegar" id="iXml" data-imp="xml" placeholder="Mantén pulsado y elige Pegar" autocapitalize="off" autocorrect="off" spellcheck="false">'+esc(E.imp.xml||'')+'</textarea>'+
-      '<button class="btn" data-a="revisar" style="margin-top:12px">Continuar '+ic('arrow')+'</button>'+
-      '<button class="link" data-a="elegirXml">'+ic('file')+'O elige un archivo .xml</button></details>'+
-    '<button class="link" data-a="volverPaso1" style="margin-top:24px">'+ic('back')+'Cambiar los datos</button>';
+    '<p class="sub">Copia la respuesta de '+esc(ia.n)+' y pégala aquí.'+(E.imp.copiado===false?' <button class="link" data-a="copiarPrompt">Copiar el texto para '+esc(ia.n)+'</button>':'')+'</p>'+
+    '<label class="sr" for="iXml">Respuesta de la IA</label><textarea class="in pegar" id="iXml" data-imp="xml" placeholder="Pega aquí la respuesta" autocapitalize="off" autocorrect="off" spellcheck="false">'+esc(E.imp.xml||'')+'</textarea>'+
+    '<div class="bar-bottom"><button class="btn" id="btnPaso2"></button>'+
+      '<button class="link" data-a="empezarDeNuevo" style="width:100%;justify-content:center">Empezar de nuevo</button></div>';
+  botonPaso2();
+}
+function botonPaso2(){
+  const b=$('#btnPaso2');if(!b||b.getAttribute('aria-busy')==='true')return;
+  const hay=!!norm(E.imp.xml);
+  b.dataset.a=hay?'revisar':'pegarResp';
+  b.innerHTML=hay?'Continuar '+ic('arrow'):ic('paste')+'Pegar respuesta';
 }
 async function pegarResp(){
   let t='';
   try{t=await navigator.clipboard.readText()}catch(e){t=null}
-  if(t===null){abrirManual('Tu navegador no deja pegar con el botón. Mantén pulsado el cuadro y elige «Pegar».');return}
-  if(esElPrompt(t)){abrirManual('Todavía tienes copiado el texto para la IA. Pégalo en '+iaSel().n+' y, cuando conteste, copia su respuesta.');return}
-  if(!/<\s*\\?\s*(pregunta|banco)|&lt;\s*(pregunta|banco)/i.test(t)){
-    abrirManual(norm(t)?'Lo que has copiado no parece la respuesta de la IA. En la IA, pulsa el botón de copiar del bloque de código y vuelve a probar.':'No hay nada copiado. En la IA, pulsa el botón de copiar del bloque de código.');return;
-  }
-  E.imp.xml=t;guardarImp();revisar();
+  if(t===null){avisoPaso2('Mantén pulsada la caja y elige «Pegar».');return}
+  if(esElPrompt(t)){avisoPaso2('Todavía tienes copiado el texto para la IA. Pégalo en '+iaSel().n+' y copia lo que conteste.');return}
+  if(!norm(t)){avisoPaso2('No hay nada copiado. Copia la respuesta en '+iaSel().n+'.');return}
+  E.imp.xml=t;guardarImp();
+  const ta=$('#iXml');if(ta)ta.value=t;
+  setTimeout(botonPaso2,0);
 }
 /* ¿Lo pegado es el texto que le mandamos a la IA (y no su respuesta)? */
 const esElPrompt=t=>/^\s*Actúa como profesor/i.test(t||'')&&/Material del tema:/i.test(t||'');
-function abrirManual(msg){
-  E.imp.manual=true;toast(msg);
-  const d=$('#manual');if(d){d.open=true;const ta=$('#iXml');if(ta){ta.focus();ta.scrollIntoView({behavior:'smooth',block:'center'})}}
-}
+function avisoPaso2(msg){toast(msg);const ta=$('#iXml');if(ta)ta.focus()}
+function empezarDeNuevo(){E.imp.xml='';E.rev=null;irPaso(1)}
 function renderPaso3(){
   app.innerHTML=cabImportar()+'<div id="rev"></div>';
   if(!E.rev){irPaso(2);return}
@@ -860,7 +855,7 @@ function pintarRevision(){
   if(r.error){
     box.innerHTML=aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>'+esc(r.pista||'Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».'))+
       (r.detalle?'<details class="ver-texto"><summary>Detalle técnico</summary><p class="hint" style="overflow-wrap:anywhere">'+esc(r.detalle)+' · versión '+VERSION+'</p></details>':'')+
-      '<div class="stack"><button class="btn" data-a="volverPaso2">'+ic('back')+'Volver a pegar</button></div>';
+      '<div class="stack"><button class="btn" data-a="empezarDeNuevo">Empezar de nuevo</button><button class="link" data-a="volverPaso2" style="justify-content:center">Volver a pegar</button></div>';
     return;
   }
   const res=r.res,{props,mapear}=nombresImport(res.ok,r.dec);
@@ -881,14 +876,11 @@ function pintarRevision(){
     (r.conDatosPaso1?aviso('info','Algunas preguntas no traían curso, asignatura o tema: se han puesto los del paso 1.'):'')+
     (r.cortado?aviso('info','<b>La respuesta de la IA se cortó antes de terminar.</b> No pasa nada: se han aprovechado las '+plural(r.lista.length,'pregunta completa','preguntas completas')+(r.descartada?' y se ha quitado la última, que estaba a medias':'')+'. Si quieres más, pide otra tanda en la IA.'):'')+
     (r.lista.length?'<p>'+plural(r.lista.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
-    (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
+    (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se guardarán.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
     Object.keys(temas).map(t=>'<p class="res-t">'+esc(t)+'</p><div class="lista">'+temas[t].map(q=>'<div>'+esc(q.enunciado)+'<span class="resp">'+ic('check')+esc(q.tipo==='escrita'?q.respuestas.join(' / '):correctaDe(q))+(q.tipo==='escrita'?' <small>(escrita)</small>':'')+'</span></div>').join('')+'</div>').join('')+
-    '<div class="stack" style="margin-top:24px">'+
-      '<button class="btn sec" data-a="impEditor">'+ic('edit')+'Corregir en el editor</button>'+
-      (r.lista.length?'<button class="btn sec" data-a="impProbar">Probar sin guardar</button>':'')+
-      '<button class="link" data-a="volverPaso2">'+ic('back')+'Volver a pegar</button>'+
-    '</div></section>'+
-    (r.lista.length?'<div class="bar-bottom"><button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Guardar '+plural(r.lista.length,'pregunta','preguntas')+'</button></div>':'');
+    '</section>'+
+    '<div class="bar-bottom">'+(r.lista.length?'<button class="btn" data-a="subirImp"'+(CONFIG.servidor?'':' disabled')+'>'+ic('upload')+'Guardar '+plural(r.lista.length,'pregunta','preguntas')+'</button>':'<button class="btn" data-a="empezarDeNuevo">Empezar de nuevo</button>')+
+      (r.lista.length?'<button class="link" data-a="empezarDeNuevo" style="width:100%;justify-content:center">Empezar de nuevo</button>':'')+'</div>';
 }
 function nombreDe(lista,i){
   const q=lista[0]||{};
@@ -900,7 +892,7 @@ async function subirImp(){
     for(const o of r.reabrir||[])await servidorPost({accion:'quitarAlias',id:o.id});
     await subirXML(r.lista,nombreDe(r.lista,E.imp));
     const n=r.lista.length,q=r.lista[0];
-    E.imp.xml='';E.imp.manual=false;E.rev=null;E.imp.paso=1;guardarImp();
+    E.imp.xml='';E.imp.extra='';E.rev=null;E.imp.paso=1;guardarImp();
     if(q){E.filtro={curso:q.curso,asignatura:q.asignatura,tema:q.tema};ls.set(LS.filtro,E.filtro)}
     renderImportar();
     abrirModal('<p class="eyebrow">Hecho</p><h1 id="mTit">'+plural(n,'pregunta guardada','preguntas guardadas')+'</h1><p>Ya están en el quiz, en todos los dispositivos.</p>'+
@@ -1219,7 +1211,8 @@ const A={
   actualizar,
   copiarPrompt,revisar,
   continuarImp,pegarResp,
-  saltarPaso2:()=>{E.imp.copiado=true;E.imp.manual=false;irPaso(2)},
+  saltarPaso2:()=>{E.imp.copiado=true;irPaso(2)},
+  empezarDeNuevo,
   volverPaso1:()=>irPaso(1),
   volverPaso2:()=>{E.rev=null;irPaso(2)},
   elegirXml:()=>$('#fileXml').click(),
@@ -1291,7 +1284,7 @@ document.addEventListener('input',e=>{
   const t=e.target;
   if(E.pant==='importar'&&t.dataset.imp){
     E.imp[t.dataset.imp]=t.value;guardarImp();t.classList.remove('falta');
-    if(t.dataset.imp==='xml'){E.rev=null;const r=$('#rev');if(r)r.innerHTML=''}
+    if(t.dataset.imp==='xml'){E.rev=null;botonPaso2()}
     else{ponerPrompt();if(t.dataset.imp!=='extra'){sugerirNombre(t.dataset.imp);if(t.dataset.imp!=='tema')sugerirNombre('tema')}}
     return;
   }
