@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='12';
+const VERSION='13';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -1867,8 +1867,13 @@ function abrirArchivo(el){
   const id=el.dataset.id,a=el.dataset.t==='s'?Datos.subidas.find(s=>s.id===id):Datos.archivos.find(x=>x.nombre===id);
   if(!a)return;
   if(tieneContenido()&&!confirm('¿Abrir «'+a.nombre+'» en el editor? Se quitará del editor lo que hay ahora (lo subido no se borra).'))return;
-  E.ed=edDesde(a.todas&&a.todas.length?a.todas:a.preguntas,a.nombre,el.dataset.t==='s'?a.id:'');
+  /* si alguna pregunta de este archivo se corrigió después en otra subida, se abre la versión corregida
+     (si no, al guardar se volvería a la versión antigua) */
+  const actual=new Map(Datos.base.map(q=>[q.id,q]));let nuevas=0;
+  const lista=(a.todas&&a.todas.length?a.todas:a.preguntas).map(q=>{const c=actual.get(q.id);if(c&&a.preguntas.indexOf(c)<0){nuevas++;return c}return q});
+  E.ed=edDesde(lista,a.nombre,el.dataset.t==='s'?a.id:'');
   guardarBorrador();ir('editor');
+  if(nuevas)toast(plural(nuevas,'pregunta se ha abierto en su versión corregida','preguntas se han abierto en su versión corregida')+'.');
 }
 async function retirar(id){
   const a=Datos.subidas.find(s=>s.id===id);if(!a)return;
