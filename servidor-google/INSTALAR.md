@@ -44,3 +44,8 @@ El servidor es gratuito y funciona con tu cuenta de Google. Guarda en una hoja d
 - **Empezar de cero:** en la app, Preguntas → Más opciones → «Empezar de cero los puntos» (pide el PIN). Se guarda en la hoja «Ajustes» la fecha desde la que cuentan los puntos; no se borra nada y se puede deshacer desde el mismo sitio.
 - **Lista de premios nueva:** si la hoja «Premios» sigue exactamente con la primera lista, se cambia sola por la nueva. Si ya la habías tocado, no se cambia (bórrala entera y se vuelve a crear con la nueva).
 - **Carga rápida:** la app solo descarga las preguntas y rondas nuevas desde la última vez; lo demás lo guarda en el dispositivo.
+
+## Avisos de errores
+
+- Cuando Pepa pulsa «Creo que mi respuesta está bien», se guarda en la hoja «Avisos» y esa pregunta no le cuenta como fallo.
+- En la app, Preguntas muestra «N preguntas pueden estar mal». Desde ahí: **Corregir** (abre solo esa pregunta en el editor; al guardar se marca revisada) o **Revisado** si la pregunta estaba bien.

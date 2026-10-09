@@ -10,6 +10,7 @@ var CAB_R = ['id','fecha','datos'];
 var CAB_A = ['id','fecha','tipo','de','a','estado','original'];
 var CAB_P = ['id','nombre','puntos','activo'];
 var CAB_J = ['clave','valor','fecha'];
+var CAB_V = ['id','fecha','preguntaId','datos','estado'];
 var CAB_C = ['id','fecha','premioId','nombre','puntos','estado','resuelto'];
 var PREMIOS_INICIALES = [
   ['pantalla','1 hora extra de pantalla el fin de semana',400],['comida','Pedir comida a domicilio (eliges tú)',700],
@@ -42,7 +43,7 @@ function doGet(e) {
   var canjes = filas(hoja('Canjes', CAB_C))
     .map(function(f){ return {id:String(f[0]), fecha:String(f[1]), premioId:String(f[2]), nombre:String(f[3]), puntos:Number(f[4]) || 0, estado:String(f[5]), resuelto:String(f[6])}; });
   return json({ok:true, v:2, subidas:subidas, resultados:res.lista, hasta:res.hasta, parcial:!!(ligera && p.desde),
-    alias:alias, premios:premios, canjes:canjes, ajustes:ajustes()});
+    alias:alias, premios:premios, canjes:canjes, ajustes:ajustes(), avisos:avisos()});
 }
 // Rondas guardadas después de «desde» (las filas van en orden, así que solo se leen las del final)
 function resultadosDesde(desde) {
@@ -65,6 +66,12 @@ function xmlDe(ids) {
   ids = ids.slice(0, 40);
   col.forEach(function(f, i){ var id = String(f[0]); if (ids.indexOf(id) >= 0) out[id] = String(h.getRange(i + 2, 5, 1, 1).getValues()[0][0]); });
   return out;
+}
+// Avisos de «creo que mi respuesta está bien» que aún no se han revisado
+function avisos() {
+  return filas(hoja('Avisos', CAB_V))
+    .filter(function(f){ return f[4] === 'pendiente'; })
+    .map(function(f){ var o = {}; try { o = JSON.parse(f[3]); } catch(e) {} o.id = String(f[0]); o.fecha = String(f[1]); o.preguntaId = String(f[2]); return o; });
 }
 function ajustes() {
   var o = {};
@@ -124,6 +131,19 @@ function doPost(e) {
       var ok3 = cambiarEstado(hc, String(d.id || ''), d.estado, 6);
       if (ok3) cambiarEstado(hc, String(d.id || ''), new Date().toISOString(), 7);
       return json(ok3 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
+    }
+    if (d.accion === 'aviso') {
+      var dv = d.datos || {}, txt = JSON.stringify(dv);
+      if (!dv.preguntaId || txt.length > 4000) return json({ok:false, error:'datos incompletos'});
+      var hv = hoja('Avisos', CAB_V);
+      // si ya hay un aviso pendiente de esa pregunta, no se repite
+      var ya2 = filas(hv).some(function(f){ return String(f[2]) === String(dv.preguntaId) && f[4] === 'pendiente'; });
+      if (!ya2) hv.appendRow([Utilities.getUuid(), new Date().toISOString(), texto(dv.preguntaId, 80), txt, 'pendiente']);
+      return json({ok:true});
+    }
+    if (d.accion === 'resolverAviso') {
+      var ok4 = cambiarEstado(hoja('Avisos', CAB_V), String(d.id || ''), 'revisado', 5);
+      return json(ok4 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
     }
     if (d.accion === 'reiniciar') {
       // Empezar de cero: los puntos, rondas y medallas cuentan desde ahora. No se borra nada; con «deshacer» vuelve todo.

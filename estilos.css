@@ -339,3 +339,17 @@ a.btn{text-decoration:none}
 .desglose{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-4px 0 14px;font-size:14px;color:var(--muted)}
 .desglose b{color:var(--ink);font-weight:500}
 .desglose small{font-size:12px}
+
+/* Avisos de errores */
+.link.avisar{min-height:40px;margin-top:8px;color:var(--muted);font-size:11px}
+.link.avisar .ic{width:18px;height:18px}
+.aviso-ok{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:14px}
+.aviso-ok .ic{width:18px;height:18px;flex:none}
+.avisos-b{border:1px solid var(--err)!important;padding:14px 12px;margin-bottom:24px}
+.avisos-b>.ic:first-child{color:var(--err)}
+.avisos-b>.ic:last-child{margin-left:auto}
+.aviso-p{padding:20px 0;border-top:1px solid var(--line)}
+.aviso-p:last-child{border-bottom:1px solid var(--line)}
+.aviso-e{font-size:17px;font-weight:500;margin:0 0 4px}
+.aviso-p .fb-cmp{margin:10px 0 16px}
+.aviso-p .tool{margin:0}
