@@ -4,10 +4,15 @@
              Vacía = solo se usan los XML de la carpeta «preguntas» y los resultados quedan en cada dispositivo.
    repo:     'usuario/repositorio' de GitHub. Vacío = se detecta solo al publicarlo en GitHub Pages.
    rama / carpeta: dónde están los XML de base dentro del repositorio (opcional).
+   puntosNuevosDesde: día desde el que cuentan los puntos «por aprender» (menos puntos por repetir lo que ya se sabe,
+             máximo diario…). Lo anterior se queda como estaba. Vacío ('') = se aplica a todo, también a lo ya hecho.
+   meta:     lo que hace falta para que un día cuente (preguntas respondidas y aciertos).
 */
 window.REPEPASO_CONFIG={
   servidor:'https://script.google.com/macros/s/AKfycbzVn_nuqFTSrf9BCARR8vo1tjtHUVckPJq8TGkoD0taA2Yy4Q-RzUUXfy82EJ7EtMQc/exec',
   repo:'',
   rama:'main',
-  carpeta:'preguntas'
+  carpeta:'preguntas',
+  puntosNuevosDesde:'2026-10-10',
+  meta:{preguntas:15,aciertos:11}
 };
