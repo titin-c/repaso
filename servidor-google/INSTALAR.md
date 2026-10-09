@@ -21,16 +21,12 @@ El servidor es gratuito y funciona con tu cuenta de Google. Guarda en una hoja d
 
 ## 3. Conectarlo con la app
 
-1. En GitHub, abre `index.html` y pulsa el lápiz para editarlo.
-2. Busca esta línea:
+1. En GitHub, abre `config.js` y pulsa el lápiz para editarlo.
+2. Pega la URL entre las comillas de `servidor`:
    ```js
-   const CONFIG={servidor:'',repo:'',rama:'main',carpeta:'preguntas'};
+   servidor:'https://script.google.com/macros/s/XXXX/exec',
    ```
-3. Pega la URL entre las primeras comillas:
-   ```js
-   const CONFIG={servidor:'https://script.google.com/macros/s/XXXX/exec',repo:'',rama:'main',carpeta:'preguntas'};
-   ```
-4. Pulsa **Commit changes**. En un minuto la app ya sube preguntas.
+3. Pulsa **Commit changes**. En un minuto la app ya guarda preguntas.
 
 ## Bueno saber
 
