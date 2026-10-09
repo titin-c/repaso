@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='9';
+const VERSION='10';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -1016,13 +1016,13 @@ function celebracion(nv,L){
 const ANIMO=['¡Sigue así!','Cada día cuenta. ¡Mañana más!','Lo estás haciendo genial.','La constancia es tu superpoder.','¡A por la siguiente!'];
 function logrosDe(nv,L){
   const out=[];
-  if(nv.diaHecho)out.push({ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
-  if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
-  if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
-  if(nv.temas>0)out.push({ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
-  else if(nv.preguntas>0)out.push({ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).pregunta+' puntos por cada una (hasta '+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).topeTemaDia+' por tema y día).'});
-  if(nv.estrenos>0)out.push({ic:'check',t:'¡Tema estrenado!',x:'Has repasado un tema que subiste tú. +'+SUBIR.estreno+' puntos.'});
-  nv.medallas.forEach(m=>out.push({ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
+  if(nv.diaHecho)out.push({g:'dias',ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
+  if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({g:'racha',ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
+  if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({g:'combo',ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
+  if(nv.temas>0)out.push({g:'crea',ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
+  else if(nv.preguntas>0)out.push({g:'crea',ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).pregunta+' puntos por cada una (hasta '+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).topeTemaDia+' por tema y día).'});
+  if(nv.estrenos>0)out.push({g:'crea',ic:'check',t:'¡Tema estrenado!',x:'Has repasado un tema que subiste tú. +'+SUBIR.estreno+' puntos.'});
+  nv.medallas.forEach(m=>out.push({g:m.grupo,ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
   return out;
 }
 function hazaña(m,L){
@@ -1034,8 +1034,13 @@ function hazaña(m,L){
 function modalLogros(nv,L,donde){
   const lista=logrosDe(nv,L);if(!lista.length)return;
   const hay=lista.some(x=>x.med);
-  const top=lista.find(x=>x.med)||lista[0];
-  abrirModal('<div class="felic"><div class="felic-ic">'+ic(top.ic)+'</div>'+
+  /* hasta tres medallas en abanico, cada una con su icono y el color fuerte de su tipo (el mismo tono que en Logros) */
+  const orden=lista.filter(x=>x.med).concat(lista.filter(x=>!x.med)).slice(0,3);
+  if(orden.length===3)orden.splice(0,2,orden[1],orden[0]);   /* la más importante, en el centro */
+  const col=x=>({dias:'amarillo',racha:'naranja',combo:'cian',crea:'violeta',tiempo:'rojo',otras:'verde'})[x.g]||'verde';
+  const pos=orden.length===1?[[0,0]]:orden.length===2?[[-8,0],[8,0]]:[[-14,8],[0,0],[14,8]];
+  const fan=orden.map((x,i)=>'<span class="med-c mc-'+col(x)+'" style="--rot:'+pos[i][0]+'deg;--dy:'+pos[i][1]+'px;--d:'+(i*.12)+'s">'+ic(x.ic)+'</span>').join('');
+  abrirModal('<div class="felic"><div class="felic-fan" aria-hidden="true">'+fan+'</div>'+
     '<p class="eyebrow">'+(hay?'Nueva medalla':'Nuevo logro')+'</p><h2 id="mTit">'+esc(lista.length===1?lista[0].t:'¡'+lista.length+' logros a la vez!')+'</h2>'+
     '<div class="felic-l">'+lista.map(x=>'<div>'+ic(x.ic)+'<span><b>'+esc(x.t)+'</b>'+esc(x.x)+'</span></div>').join('')+'</div>'+
     '<p class="felic-a">'+esc(pick(ANIMO))+'</p>'+
@@ -1069,7 +1074,7 @@ function medallasHTML(L){
     const sig=m.cada?(m.cada-(x.valor%m.cada)):Math.max(0,m.meta-x.valor);
     const det=m.cada===1?(ok?'×'+x.veces:m.txt):m.cada?(ok?'×'+x.veces+' · próxima en '+plural(sig,'día','días'):'Faltan '+plural(sig,'día','días')):
       ok?'+'+m.pts+' puntos':(m.grupo==='otras'&&m.id==='primera'?m.txt:'Llevas '+Math.min(x.valor,m.meta)+' de '+m.meta);
-    return '<div class="med'+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b><small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
+    return '<div class="med g-'+m.grupo+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b><small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
   };
   const grupos=[['dias','Días hechos'],['racha','Días seguidos'],['combo','Aciertos seguidos'],['crea','Creando preguntas'],['tiempo','Tiempo jugando'],['otras','Otras']];
   return '<section class="sec-block"><h2>Medallas</h2>'+grupos.map(([g,t])=>'<p class="res-t">'+t+'</p><div class="meds">'+L.medallas.filter(x=>x.m.grupo===g).map(fila).join('')+'</div>').join('')+'</section>';
@@ -1090,11 +1095,11 @@ function premiosHTML(L){
     '<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.fecha)+' · '+(+c.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
     '<button class="link" data-a="confirmarCanje" data-id="'+esc(c.id)+'">Confirmar</button></div>').join('')+'</div>';
   h+='<p class="res-t">Elige un premio</p><div>'+premios().map(p=>{
-    const falta=p.puntos-L.saldo;
-    if(falta<=0)return '<div class="ses premio"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
+    const falta=p.puntos-L.saldo,cc='';
+    if(falta<=0)return '<div class="ses premio'+cc+'"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
       '<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button></div>';
     const pc=Math.max(0,Math.min(99,Math.floor(L.saldo/p.puntos*100)));
-    return '<div class="ses premio lejos"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+pc+'%</span></div>'+
+    return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+pc+'%</span></div>'+
       '<div class="linea" aria-hidden="true"><i style="width:'+pc+'%"></i></div>'+
       '<small>'+Math.max(0,L.saldo).toLocaleString('es-ES')+' de '+(+p.puntos).toLocaleString('es-ES')+' · te faltan '+falta.toLocaleString('es-ES')+cuandoLlega(falta,L)+'</small></div></div>';
   }).join('')+'</div>';
