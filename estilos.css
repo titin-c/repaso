@@ -12,6 +12,7 @@
   --t-amarillo0:#FFFEF9; --t-naranja0:#FFFCF9; --t-cian0:#F9FEFE; --t-violeta0:#FCFAFF; --t-rojo0:#FEF9FA; --t-verde0:#F9FDFB;
   --g-hoy:#FFFEF0; --g-amarillo:#FFFEE0; --g-verde:#EEFFE0; --g-rojo:#FFF2F2; --g-azul:#EBFEFF; --g-azul-osc:#EBF2FF; --g-morado:#FBF5FF; --g-rosa:#FFF5FF;
   /* Colores fuertes, solo para las medallas del modal de logros: el mismo tono que el fondo de cada tipo de medalla */
+  --m-rosa:#FF2E93; --m-azul:#2F6BFF; --t-rosa:#FFF5FA; --t-rosa2:#FFE6F2; --t-rosa0:#FFFAFC; --t-azul:#F5F8FF; --t-azul2:#E6EDFF; --t-azul0:#FAFBFF;
   --m-amarillo:#FFD400; --m-naranja:#FF7A00; --m-cian:#00C8E0; --m-violeta:#7B2FF7; --m-rojo:#E6192E; --m-verde:#1DB954;
   /* Fondos de las medallas en Logros: el mismo color fuerte, casi transparente (5 %; conseguidas, degradado del 5 % al 12 %) */
   --t-amarillo:#FFFDF2; --t-amarillo2:#FFFAE0; --t-naranja:#FFF8F2; --t-naranja2:#FFEFE0; --t-cian:#F2FCFD; --t-cian2:#E0F8FB; --t-violeta:#F8F5FF; --t-violeta2:#EFE6FE; --t-rojo:#FEF4F5; --t-rojo2:#FCE3E6; --t-verde:#F4FCF6; --t-verde2:#E4F7EA;
@@ -26,6 +27,7 @@
     --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23efefef' stroke-width='1'/%3E%3C/svg%3E");
     --t-amarillo:#232011; --t-amarillo2:#332D0F; --t-naranja:#231911; --t-naranja2:#33210F; --t-cian:#111F20; --t-cian2:#0F2B2F; --t-violeta:#191422; --t-violeta2:#211632; --t-rojo:#211214; --t-rojo2:#301316; --t-verde:#131E17; --t-verde2:#14291B;
     --t-amarillo0:#1A1911; --t-naranja0:#1A1611; --t-cian0:#111819; --t-violeta0:#16131A; --t-rojo0:#191213; --t-verde0:#121814;
+    --t-rosa:#23141B; --t-rosa2:#331624; --t-rosa0:#1A1317; --t-azul:#141823; --t-azul2:#161E33; --t-azul0:#13151A;
     --g-hoy:#202011; --g-amarillo:#2A2912; --g-verde:#1E2A14; --g-rojo:#241616; --g-azul:#142628; --g-azul-osc:#141C2A; --g-morado:#1C1624; --g-rosa:#231624;
     color-scheme:dark;
   }
@@ -384,3 +386,16 @@ a.btn{text-decoration:none}
 .felic-l .ic{flex:none}
 @keyframes felic{0%{transform:rotate(var(--rot,0deg)) translateY(var(--dy,0)) scale(.6);opacity:0}70%{transform:rotate(var(--rot,0deg)) translateY(var(--dy,0)) scale(1.08)}100%{transform:rotate(var(--rot,0deg)) translateY(var(--dy,0)) scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.felic-fan .med-c{animation:none}}
+
+/* Prácticas (ortografía en rosa, problemas en azul) */
+.med.g-p-ortografia,.practica.g-p-ortografia{--pc0:var(--t-rosa0);--pc:var(--t-rosa);--pc2:var(--t-rosa2)}
+.med.g-p-problemas,.practica.g-p-problemas{--pc0:var(--t-azul0);--pc:var(--t-azul);--pc2:var(--t-azul2)}
+.mc-rosa{--mc:var(--m-rosa);--mi:#fff} .mc-azul{--mc:var(--m-azul);--mi:#fff}
+.practicas{margin:-16px 0 32px}
+.practicas .res-t{margin-top:0}
+.practicas-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.practica{display:flex;align-items:center;gap:12px;padding:14px 12px;border:1px solid var(--ink);background:var(--pc0);text-align:left;min-height:64px}
+.practica b{display:block;font-weight:500;font-size:15px}
+.practica small{display:block;font-size:12px;color:var(--muted)}
+.practica.ok{background:linear-gradient(135deg,var(--pc) 0%,var(--pc2) 100%)}
+.switch.sin-puntos{margin:0 0 4px;border-top:1px solid var(--line)}
