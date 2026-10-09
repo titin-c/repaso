@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='10';
+const VERSION='11';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -56,12 +56,37 @@ const comoNumero=s=>{
   const f=t.match(/^([-+]?\d+)\/(\d+)$/);return f&&+f[2]?(+f[1])/(+f[2]):null;   /* fracciones: 1/2 = 0,5 */
 };
 /* «verdadero», «verdadera», «cierto», «V»… valen lo mismo */
-const vfDe=x=>{const t=normEscrita(x,false);return /^(verdader[oa]s?|ciert[oa]s?|v|si)$/.test(t)?'verdadero':/^(fals[oa]s?|f|no)$/.test(t)?'falso':null};
-const VF_PALABRAS=/^(verdader[oa]s?|ciert[oa]s?|fals[oa]s?|v|f)$/i;
+/* Solo palabras: una «v» o una «b» sueltas son letras (preguntas de ortografía), no «verdadero» */
+const vfDe=(x,letras)=>{const t=normEscrita(x,false);
+  return /^(verdader[oa]s?|ciert[oa]s?)$/.test(t)||(letras&&t==='v')?'verdadero':/^(fals[oa]s?)$/.test(t)||(letras&&t==='f')?'falso':null};
+const VF_PALABRAS=/^(verdader[oa]s?|ciert[oa]s?|fals[oa]s?)$/i;
 /* Formas válidas de una respuesta escrita según la pregunta.
    Si el enunciado tiene una palabra con hueco («le_ía», «ad__etivo»), vale escribir solo la letra que falta
    («j», «con j», «la j») o la palabra entera («lejía»), aunque la IA solo haya puesto una de las dos. */
 const LETRA='[a-záéíóúüñ]';
+/* Pregunta de «qué letra falta» (le__ía). Es ortografía: si escribe la palabra entera tiene que estar perfecta,
+   tilde incluida. Pero el aviso dice exactamente qué ha fallado: la letra, la tilde o las dos. */
+function evaluarHueco(q,valor){
+  const en=norm(q.enunciado),huecos=(en.match(new RegExp(LETRA+'*_+'+LETRA+'*','gi'))||[]).filter(h=>h.replace(/_/g,'').length>0);
+  if(huecos.length!==1)return null;
+  const [pre,post]=huecos[0].split(/_+/),R=respuestasDe(q),una=new RegExp('^'+LETRA+'{1,3}$','i');
+  const letras=R.filter(r=>una.test(r)).map(r=>r.toLowerCase());
+  if(!letras.length)return null;
+  const sin=t=>normEscrita(t,false),er=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const v=normEscrita(valor,true).replace(/^(con|letra|la letra)\s+/,'');
+  let fill=null,palabra=false;
+  if(una.test(v))fill=v;
+  else{const m=sin(v).match(new RegExp('^'+er(sin(pre))+'([a-z]{1,3})'+er(sin(post))+'$'));if(m){fill=m[1];palabra=true}}
+  if(fill===null)return null;
+  const completa=R.find(r=>!una.test(r)&&!/^(con |letra |la letra )/.test(r))||(pre+letras[0]+post).toLowerCase();
+  if(letras.some(l=>sin(l)===sin(fill))){
+    const tilde=palabra&&normEscrita(v,true)!==normEscrita(completa,true);
+    return {ok:!tilde,tipo:tilde?'hueco-tilde':'exacto',forma:completa,letra:letras[0]};
+  }
+  /* letra mal; ¿y la tilde? (se compara la palabra que habría salido con la letra buena) */
+  const tildeMal=palabra&&normEscrita(v.replace(new RegExp(er(fill)),letras[0]),true)!==normEscrita(completa,true)&&sin(v.replace(new RegExp(er(fill)),letras[0]))===sin(completa);
+  return {ok:false,tipo:'hueco-mal',forma:completa,letra:letras[0],tuya:fill,tildeMal};
+}
 function respuestasDe(q){
   const R=(q.respuestas||[]).map(norm).filter(Boolean),out=R.slice();
   const huecos=(norm(q.enunciado).match(new RegExp(LETRA+'*_+'+LETRA+'*','gi'))||[]).filter(h=>h.replace(/_/g,'').length>0);
@@ -103,7 +128,7 @@ function compararPalabra(a,b){
 }
 function evaluarEscrita(valor,respuestas,exacta){
   const v=norm(valor);if(!v)return {ok:false};
-  const vv=vfDe(v);if(vv){const r=respuestas.find(x=>vfDe(x)===vv);if(r)return {ok:true,tipo:'exacto',forma:r}}
+  const vv=vfDe(v,true);if(vv){const r=respuestas.find(x=>vfDe(x)===vv);if(r)return {ok:true,tipo:'exacto',forma:r}}
   const nv=comoNumero(v);
   for(const r of respuestas){
     const nr=comoNumero(r);
@@ -665,12 +690,14 @@ function responder(oi){
 /* Respuesta escrita */
 function responderEscrita(valor){
   const s=E.sesion,q=s.preguntas[s.i].q;if(s.resp[s.i])return;
-  const r=evaluarEscrita(valor,respuestasDe(q),q.exacta);
+  const r=evaluarHueco(q,valor)||evaluarEscrita(valor,respuestasDe(q),q.exacta);
   s.resp[s.i]={escrita:valor,ok:r.ok};
   const inp=$('#rEsc');inp.disabled=true;inp.classList.add(r.ok?'ok':'ko');
   const b=app.querySelector('#fEsc .btn');if(b)b.remove();
   const f=r.forma?'<b>'+esc(r.forma)+'</b>':'';
-  const nota=r.tipo==='tilde'?(r.ok?'Fíjate en la tilde: se escribe '+f+'.':'Casi: te ha faltado la tilde (o sobra). Se escribe '+f+'.'):
+  const nota=r.tipo==='hueco-tilde'?'La letra está bien (<b>'+esc(r.letra)+'</b>), pero falla la tilde: se escribe '+f+'.':
+    r.tipo==='hueco-mal'?'Falla la letra: has puesto «'+esc(r.tuya)+'» y es con <b>'+esc(r.letra)+'</b>'+(r.tildeMal?'. Y además falta la tilde':'')+': se escribe '+f+'.':
+    r.tipo==='tilde'?(r.ok?'Fíjate en la tilde: se escribe '+f+'.':'Casi: te ha faltado la tilde (o sobra). Se escribe '+f+'.'):
     r.tipo==='orto'||(r.tipo==='parcial'&&r.orto)?'Bien, pero fíjate en cómo se escribe: '+f+'.':
     r.tipo==='parcial'?'La respuesta completa es '+f+'.':'';
   feedback(s,q,r.ok,nota?'<p class="fb-nota">'+nota+'</p>':'',valor);
@@ -1244,7 +1271,7 @@ function promptTexto(){
   }
   if(T.indexOf('escrita')>=0){
     reglas.push('- Preguntas de respuesta escrita: solo cuando la respuesta sea corta (una o pocas palabras, o un número) y sin dudas. En <respuesta> pon la forma correcta y, en otras <respuesta>, las demás formas válidas: la corta y la larga (por ejemplo «no verbal» y «comunicación no verbal»), o «3» y «tres». Si la pregunta trata de cómo se escribe una palabra (ortografía), añade exacta="si" a la <pregunta>. Si la respuesta puede ser más de una cosa distinta, no la hagas escrita: hazla tipo test.');
-    reglas.push('- Ortografía con hueco: escribe la palabra con guiones bajos donde falta la letra (por ejemplo «le__ía») y pon en <respuesta> la letra que falta y, en otra <respuesta>, la palabra entera («j» y «lejía»). Comprueba que la palabra completa existe, está bien escrita y que la letra que falta es una de las que preguntas (si preguntas «b o v», la respuesta tiene que ser b o v).');
+    reglas.push('- Ortografía con hueco: escribe la palabra con guiones bajos donde falta la letra (por ejemplo «le__ía») y pon en <respuesta> la letra que falta y, en otra <respuesta>, la palabra entera («j» y «lejía»). Comprueba que la palabra completa existe, está bien escrita y que la letra que falta es una de las que preguntas (si preguntas «b o v», la respuesta tiene que ser b o v). Cada pregunta de ortografía pregunta UNA sola cosa (la letra que falta, o la tilde), nunca las dos a la vez, y nunca es de verdadero o falso.');
     ejemplo.push('        <pregunta tipo="escrita">','          <enunciado>¿Cuál es la raíz cuadrada de 9?</enunciado>','          <respuesta>3</respuesta>',
       '          <respuesta>tres</respuesta>','          <explicacion>Porque 3 × 3 = 9</explicacion>','        </pregunta>');
   }
@@ -1492,6 +1519,7 @@ function sospecha(q){
   if(q.tipo!=='escrita'&&q.opciones.length===2&&q.opciones[0]==='Verdadero'&&q.opciones[1]==='Falso'){
     const dice=/(^|\b)(es|esto es|esta afirmacion es|la afirmacion es)?\s*(completamente |totalmente )?(verdader|ciert|correct)/.test(ex)&&!/fals|incorrect|no es (verdad|ciert)/.test(ex)?0:
       /(^|\b)(es|esto es|esta afirmacion es|la afirmacion es)?\s*(completamente |totalmente )?(fals|incorrect)/.test(ex)?1:-1;
+    if(new RegExp(LETRA+'*_+'+LETRA+'*','i').test(q.enunciado)&&/\b[a-zñ]{1,2}\s+o\s+(?:con\s+)?[a-zñ]{1,2}\b/i.test(q.enunciado))return 'pide una letra pero es de verdadero o falso';
     if(dice>=0&&dice!==q.correcta)return 'la explicación dice «'+(dice?'falso':'verdadero')+'» pero la respuesta marcada es «'+(q.correcta?'falso':'verdadero')+'»';
     return '';
   }
