@@ -8,7 +8,9 @@
   /* Colores de gamificación — SOLO fondos, muy claros (equivalen a rgba sobre blanco):
      amarillo rgba(255,246,0,.12) · verde rgba(114,255,0,.12) · rojo rgba(255,0,0,.05) · azul rgba(0,243,255,.08)
      azul oscuro rgba(0,92,255,.08) · morado rgba(145,0,255,.04) · rosa rgba(248,0,255,.04) */
-  --g-amarillo:#FFFEE0; --g-verde:#EEFFE0; --g-rojo:#FFF2F2; --g-azul:#EBFEFF; --g-azul-osc:#EBF2FF; --g-morado:#FBF5FF; --g-rosa:#FFF5FF;
+  /* sin conseguir: la mitad (2,5 %) */
+  --t-amarillo0:#FFFEF9; --t-naranja0:#FFFCF9; --t-cian0:#F9FEFE; --t-violeta0:#FCFAFF; --t-rojo0:#FEF9FA; --t-verde0:#F9FDFB;
+  --g-hoy:#FFFEF0; --g-amarillo:#FFFEE0; --g-verde:#EEFFE0; --g-rojo:#FFF2F2; --g-azul:#EBFEFF; --g-azul-osc:#EBF2FF; --g-morado:#FBF5FF; --g-rosa:#FFF5FF;
   /* Colores fuertes, solo para las medallas del modal de logros: el mismo tono que el fondo de cada tipo de medalla */
   --m-amarillo:#FFD400; --m-naranja:#FF7A00; --m-cian:#00C8E0; --m-violeta:#7B2FF7; --m-rojo:#E6192E; --m-verde:#1DB954;
   /* Fondos de las medallas en Logros: el mismo color fuerte, casi transparente (5 %; conseguidas, degradado del 5 % al 12 %) */
@@ -23,7 +25,8 @@
     --focus:0 0 0 2px #000000,0 0 0 4px #ffffff;
     --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23efefef' stroke-width='1'/%3E%3C/svg%3E");
     --t-amarillo:#232011; --t-amarillo2:#332D0F; --t-naranja:#231911; --t-naranja2:#33210F; --t-cian:#111F20; --t-cian2:#0F2B2F; --t-violeta:#191422; --t-violeta2:#211632; --t-rojo:#211214; --t-rojo2:#301316; --t-verde:#131E17; --t-verde2:#14291B;
-    --g-amarillo:#2A2912; --g-verde:#1E2A14; --g-rojo:#241616; --g-azul:#142628; --g-azul-osc:#141C2A; --g-morado:#1C1624; --g-rosa:#231624;
+    --t-amarillo0:#1A1911; --t-naranja0:#1A1611; --t-cian0:#111819; --t-violeta0:#16131A; --t-rojo0:#191213; --t-verde0:#121814;
+    --g-hoy:#202011; --g-amarillo:#2A2912; --g-verde:#1E2A14; --g-rojo:#241616; --g-azul:#142628; --g-azul-osc:#141C2A; --g-morado:#1C1624; --g-rosa:#231624;
     color-scheme:dark;
   }
 }
@@ -365,10 +368,10 @@ a.btn{text-decoration:none}
 .aviso-p .tool{margin:0}
 
 /* ---------- Color en la gamificación (fondos sutiles) ---------- */
-.hoy{background:var(--g-amarillo)}
+.hoy{background:var(--g-hoy)}
 /* Medallas de la sección Logros: cada tipo con su color (el mismo que su medalla en el modal), muy suave */
-.med.g-dias{--pc:var(--t-amarillo);--pc2:var(--t-amarillo2)} .med.g-racha{--pc:var(--t-naranja);--pc2:var(--t-naranja2)} .med.g-combo{--pc:var(--t-cian);--pc2:var(--t-cian2)} .med.g-crea{--pc:var(--t-violeta);--pc2:var(--t-violeta2)} .med.g-tiempo{--pc:var(--t-rojo);--pc2:var(--t-rojo2)} .med.g-otras{--pc:var(--t-verde);--pc2:var(--t-verde2)}
-.med{background:var(--pc)}
+.med.g-dias{--pc0:var(--t-amarillo0);--pc:var(--t-amarillo);--pc2:var(--t-amarillo2)} .med.g-racha{--pc0:var(--t-naranja0);--pc:var(--t-naranja);--pc2:var(--t-naranja2)} .med.g-combo{--pc0:var(--t-cian0);--pc:var(--t-cian);--pc2:var(--t-cian2)} .med.g-crea{--pc0:var(--t-violeta0);--pc:var(--t-violeta);--pc2:var(--t-violeta2)} .med.g-tiempo{--pc0:var(--t-rojo0);--pc:var(--t-rojo);--pc2:var(--t-rojo2)} .med.g-otras{--pc0:var(--t-verde0);--pc:var(--t-verde);--pc2:var(--t-verde2)}
+.med{background:var(--pc0)}
 .med.ok{background:linear-gradient(135deg,var(--pc) 0%,var(--pc2) 100%)}
 /* Modal de logros: medallas de colores en abanico */
 .felic-fan{position:relative;height:96px;margin:4px auto 16px;display:flex;justify-content:center;align-items:center}
