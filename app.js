@@ -1,6 +1,7 @@
 (function(){
 'use strict';
 
+const VERSION='3';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -170,30 +171,56 @@ const esVF=q=>q.tipo!=='escrita'&&q.opciones.length===2&&/^verdadero$/i.test(q.o
 /* Limpia lo que pega la IA: quita texto alrededor y bloques ```, arregla los & sueltos.
    Si la respuesta se cortó a medias (pasa con la versión gratis de ChatGPT), se queda con las
    preguntas completas, quita la última a medias y cierra el archivo. */
-function arreglarXMLInfo(t){
-  t=String(t||'').replace(/^﻿/,'').replace(/```[a-z]*\s*/gi,'');
+/* Limpia lo que se pega de la IA y reconstruye un XML válido.
+   No importa cómo venga: con marcos de código (```xml), partido en varios bloques, con texto de la IA
+   entre medias, con varias cabeceras <?xml…?>, empezando o acabando a mitad de una pregunta…
+   Se buscan las <pregunta>…</pregunta> completas, cada una con su curso/asignatura/tema, y se
+   monta un archivo nuevo. Lo que no está completo se descarta. Si falta curso, asignatura o tema,
+   se usan los del paso 1 (def). */
+function arreglarXMLInfo(t,def){
+  def=def||{};
+  t=String(t||'').replace(/^﻿/,'').replace(/[​-‍⁠]/g,'').replace(/ /g,' ');
   /* Al copiar desde ChatGPT a veces llegan los símbolos «escapados»: \<pregunta\> o &lt;pregunta&gt; */
   t=t.replace(/\\([<>"'_*#=\-\[\]()?!.\\])/g,'$1');
-  if(!/<banco[\s>]/i.test(t)&&/&lt;banco/i.test(t))t=t.replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'");
+  if(!/<(banco|pregunta)[\s>]/i.test(t)&&/&lt;(banco|pregunta)/i.test(t))t=t.replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'");
+  /* marcos de código (``` o ~~~, con o sin «xml») */
+  t=t.replace(/(`{3,}|~{3,})[ \t]*[a-z]*/gi,'\n');
   /* comillas tipográficas en los atributos (nombre=“…”) */
-  t=t.replace(/=\s*[“”„«]([^“”„»]*)[“”„»]/g,'="$1"');
-  const i=t.search(/<\?xml|<banco[\s>]/i);if(i>0)t=t.slice(i);
-  const info={cortado:false,descartada:false};
-  const j=t.toLowerCase().lastIndexOf('</banco>');
-  if(j>=0)t=t.slice(0,j+8);
-  else{
-    const k=t.toLowerCase().lastIndexOf('</pregunta>');
-    if(k<0&&/<pregunta[\s>]/i.test(t))info.sinCompletas=true;
-    if(k>=0){
-      info.cortado=true;
-      info.descartada=/<pregunta[\s>]/i.test(t.slice(k+11));
-      t=t.slice(0,k+11);
-      const pila=[],re=/<(\/?)(banco|curso|asignatura|tema)\b[^>]*?(\/?)>/gi;let m;
-      while((m=re.exec(t))){if(m[3])continue;if(m[1]){const x=pila.lastIndexOf(m[2].toLowerCase());if(x>=0)pila.length=x}else pila.push(m[2].toLowerCase())}
-      t+='\n'+pila.reverse().map(n=>'</'+n+'>').join('\n');
-    }
+  t=t.replace(/=\s*[“”„«‘’]([^“”„»‘’]*)[“”„»‘’]/g,'="$1"');
+  const info={cortado:false,descartada:false,inicioCortado:false,malas:0,conDatosPaso1:false};
+  const ini=t.search(/<pregunta[\s>]/i),fin1=t.search(/<\/pregunta>/i);
+  if(fin1>=0&&(ini<0||fin1<ini))info.inicioCortado=true;
+  /* recorrer etiquetas de contexto y preguntas completas, en orden */
+  const ctx={curso:'',asignatura:'',tema:''},trozos=[];
+  const re=/<(curso|asignatura|tema)\b([^>]*)>|<pregunta\b[^>]*>[\s\S]*?<\/pregunta>/gi;let m,ultimo=0;
+  const attr=(a,n)=>{const x=new RegExp('\\b'+n+'\\s*=\\s*"([^"]*)"','i').exec(a)||new RegExp("\\b"+n+"\\s*=\\s*'([^']*)'",'i').exec(a);return x?x[1]:''};
+  while((m=re.exec(t))){
+    ultimo=re.lastIndex;
+    if(m[1]){const v=attr(m[2],'nombre');if(v){ctx[m[1].toLowerCase()]=v;if(m[1].toLowerCase()==='curso'){ctx.asignatura='';ctx.tema=''}else if(m[1].toLowerCase()==='asignatura')ctx.tema=''}continue}
+    let q=m[0];
+    /* si dentro hay otra <pregunta (la anterior quedó a medias), quedarse con la última */
+    const dentro=[...q.slice(1).matchAll(/<pregunta[\s>]/gi)];
+    if(dentro.length){q=q.slice(dentro[dentro.length-1].index+1);info.malas+=dentro.length}
+    const abre=/^<pregunta\b[^>]*>/i.exec(q)[0];
+    let nuevaAbre=abre;
+    ['curso','asignatura','tema'].forEach(c=>{
+      if(attr(abre,c))return;
+      let v=ctx[c];if(!v&&def[c]){v=def[c];info.conDatosPaso1=true}
+      if(v)nuevaAbre=nuevaAbre.replace(/>$/,' '+c+'="'+v.replace(/"/g,'&quot;')+'">');
+    });
+    q=nuevaAbre+q.slice(abre.length);
+    q=q.replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/gi,'&amp;');
+    /* cada pregunta tiene que ser XML válido por sí sola; si no, se descarta */
+    const d=new DOMParser().parseFromString(q,'application/xml');
+    if(d.getElementsByTagName('parsererror').length){info.malas++;if(!info.detalle)info.detalle=norm(d.getElementsByTagName('parsererror')[0].textContent).slice(0,200)+' · En: '+norm(q).slice(0,80);continue}
+    trozos.push(q);
   }
-  info.xml=t.trim().replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/gi,'&amp;');
+  const resto=t.slice(ultimo);
+  if(/<pregunta[\s>]/i.test(resto)){info.cortado=true;info.descartada=true}
+  else if(trozos.length&&!/<\/banco>/i.test(resto))info.cortado=true;
+  if(!trozos.length&&/<pregunta[\s>]/i.test(t))info.sinCompletas=true;
+  info.n=trozos.length;
+  info.xml='<?xml version="1.0" encoding="UTF-8"?>\n<banco>\n'+trozos.join('\n')+'\n</banco>';
   return info;
 }
 const arreglarXML=t=>arreglarXMLInfo(t).xml;
@@ -248,7 +275,7 @@ function parsearXML(txt,archivo){
   const doc=new DOMParser().parseFromString(txt,'application/xml');
   if(doc.getElementsByTagName('parsererror').length){
     const e=new Error('El texto no es un XML válido: puede que esté incompleto o que falte cerrar alguna etiqueta.');
-    e.xml=true;throw e;
+    e.xml=true;e.detalle=norm(doc.getElementsByTagName('parsererror')[0].textContent).slice(0,300);throw e;
   }
   const todas=Array.from(doc.getElementsByTagName('pregunta')).map(leerPregunta);
   const ok=[],errores=[];
@@ -601,6 +628,7 @@ function renderPreguntas(){
     '<button class="lbtn" data-a="plantilla">'+ic('download')+'<span>Descargar plantilla XML<small>Ejemplo del formato</small></span></button>'+
     '<button class="lbtn" data-a="exportarRes">'+ic('download')+'<span>Descargar resultados<small>Todas las rondas en un archivo</small></span></button>'+
     '</div></section>';
+  h+='<p class="nota">rePEPAso · versión '+VERSION+'</p>';
   if(!CONFIG.servidor)h+='<p class="nota">El servidor aún no está configurado: se pueden revisar y probar preguntas, pero no subirlas. Ver «servidor-google/INSTALAR.md».</p>';
   app.innerHTML=h;
 }
@@ -793,9 +821,10 @@ function revisar(){
   const txt=E.imp.xml;
   if(!norm(txt)){toast('Pega primero la respuesta de la IA.');const ta=$('#iXml');if(ta)ta.focus();return}
   if(esElPrompt(txt)){toast('Eso es el texto para la IA, no su respuesta. Pégalo en '+iaSel().n+' y copia lo que conteste.');return}
-  try{const a=arreglarXMLInfo(txt);
-    if(a.sinCompletas)E.rev={error:'La respuesta de la IA se cortó antes de terminar la primera pregunta.',pista:'Vuelve a pedírselo eligiendo 10 preguntas, o escríbele «continúa» y pega aquí la respuesta entera.'};
-    else E.rev={res:parsearXML(a.xml,''),dec:{},cortado:a.cortado,descartada:a.descartada}}catch(err){E.rev={error:err.message}}
+  try{const a=arreglarXMLInfo(txt,{curso:norm(E.imp.curso),asignatura:norm(E.imp.asignatura),tema:norm(E.imp.tema)});
+    if(a.sinCompletas&&a.malas)E.rev={error:'Ninguna pregunta se ha podido leer: vienen con etiquetas rotas.',pista:'Pídele a la IA: «El XML tiene errores. Revísalo y devuélvemelo completo».',detalle:a.detalle};
+    else if(a.sinCompletas)E.rev={error:'La respuesta de la IA se cortó antes de terminar la primera pregunta.',pista:'Vuelve a pedírselo eligiendo 10 preguntas, o escríbele «continúa» y pega aquí la respuesta entera.'};
+    else E.rev={res:parsearXML(a.xml,''),dec:{},cortado:a.cortado,descartada:a.descartada,inicioCortado:a.inicioCortado,malas:a.malas,conDatosPaso1:a.conDatosPaso1}}catch(err){E.rev={error:err.message,detalle:[err.detalle,'Inicio: '+norm(txt).slice(0,80)].filter(Boolean).join(' · ')}}
   irPaso(3);
 }
 /* Compara los nombres del XML nuevo con los que ya existen.
@@ -830,6 +859,7 @@ function pintarRevision(){
   const r=E.rev,box=$('#rev');if(!box||!r)return;
   if(r.error){
     box.innerHTML=aviso('err','<b>No se puede leer.</b> '+esc(r.error)+'<br>'+esc(r.pista||'Pídele a la IA: «El XML tiene un error. Revísalo y devuélvemelo completo».'))+
+      (r.detalle?'<details class="ver-texto"><summary>Detalle técnico</summary><p class="hint" style="overflow-wrap:anywhere">'+esc(r.detalle)+' · versión '+VERSION+'</p></details>':'')+
       '<div class="stack"><button class="btn" data-a="volverPaso2">'+ic('back')+'Volver a pegar</button></div>';
     return;
   }
@@ -846,6 +876,9 @@ function pintarRevision(){
         '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="1" aria-pressed="'+p.usar+'">Sí, es el mismo</button>'+
         '<button class="chip" data-a="decNombre" data-k="'+esc(p.k)+'" data-v="0" aria-pressed="'+!p.usar+'">No, es otro</button></div></div>').join('')+'</div>':'')+
     (r.reabrir.length?aviso('info','Vas a subir preguntas de '+r.reabrir.map(o=>'«'+esc(o.original||o.de)+'»').join(', ')+', que estaba eliminado. Al subirlas volverá a aparecer.'):'')+
+    (r.inicioCortado?aviso('info','<b>Lo copiado empezaba a mitad de una pregunta.</b> Se ha quitado ese trozo y se han aprovechado las preguntas completas.'):'')+
+    (r.malas?aviso('info',plural(r.malas,'pregunta venía rota y se ha quitado','preguntas venían rotas y se han quitado')+'.'):'')+
+    (r.conDatosPaso1?aviso('info','Algunas preguntas no traían curso, asignatura o tema: se han puesto los del paso 1.'):'')+
     (r.cortado?aviso('info','<b>La respuesta de la IA se cortó antes de terminar.</b> No pasa nada: se han aprovechado las '+plural(r.lista.length,'pregunta completa','preguntas completas')+(r.descartada?' y se ha quitado la última, que estaba a medias':'')+'. Si quieres más, pide otra tanda en la IA.'):'')+
     (r.lista.length?'<p>'+plural(r.lista.length,'pregunta lista','preguntas listas')+': <b>'+plural(nuevas,'nueva','nuevas')+'</b>'+(act?' y '+act+' que '+(act===1?'actualiza otra que ya estaba':'actualizan otras que ya estaban'):'')+'. No se borra ninguna.</p>':'')+
     (res.errores.length?aviso('err','<b>'+plural(res.errores.length,'pregunta tiene','preguntas tienen')+' errores</b> y no se subirán. Puedes corregirlas en el editor.<ul class="errs">'+res.errores.slice(0,20).map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>'):'')+
