@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='14';
+const VERSION='15';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -855,10 +855,11 @@ const reglasNuevas=k=>!DESDE_NUEVOS||k>=DESDE_NUEVOS;
    Una pregunta es de una práctica si su tema o asignatura contiene alguna de sus palabras
    (o, en ortografía, si la pregunta es de escritura exacta). Se pueden cambiar en config.js → practicas. */
 const PRACTICAS=(CONFIG.practicas||[
-  {id:'ortografia',nombre:'Ortografía',ic:'edit',palabras:['ortograf','acentuac','tilde']},
-  {id:'problemas',nombre:'Problemas',ic:'bolt',palabras:['problema']}
-]).map(p=>Object.assign({},p,{claves:(p.palabras||[]).map(w=>clave(w))}));
-const RETO={n:5,pts:20};   /* reto diario de cada práctica: 5 aciertos que den puntos → +20 */
+  {id:'ortografia',nombre:'Ortografía',ic:'edit',palabras:['ortograf','acentuac','tilde'],reto:20},
+  {id:'problemas',nombre:'Problemas',ic:'bolt',palabras:['problema'],reto:5}
+]).map(p=>Object.assign({reto:5},p,{claves:(p.palabras||[]).map(w=>clave(w))}));
+/* reto diario de cada práctica: N aciertos (que den puntos) en el día → +20. Ortografía 20, problemas 5 */
+const RETO={pts:20};
 function practicaDe(q){
   if(!q)return null;
   const t=clave(q.tema||'')+'|'+clave(q.asignatura||'');
@@ -928,7 +929,7 @@ function calcularLogros(R,ahora){
         const repetidaHoy=nuevas&&!recuperada&&okDia.get(x.id)===k;
         const pr=practicaDe(porId.get(x.id)||x);
         if(pr&&!repetidaHoy){const P=L.prac[pr.id];P.ok++;P.dia[k]=(P.dia[k]||0)+1;
-          if(P.dia[k]===RETO.n){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
+          if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
         if(!nuevas)dar(PUNTOS.acierto+(recuperada?PUNTOS.recuperada:0));
         else if(recuperada){g.recuperadas++;dar(PUNTOS.recuperar)}
         else if(!okDia.has(x.id)){g.nuevas++;dar(PUNTOS.nueva)}
@@ -1043,18 +1044,18 @@ function practicasHTML(){
   if(!P.length)return '';
   const L=calcularLogros();
   return '<div class="practicas"><p class="res-t">Reto del día</p><div class="practicas-b">'+P.map(({p})=>{
-    const h=Math.min(RETO.n,L.retoHoy[p.id]||0),ok=h>=RETO.n;
+    const h=Math.min(p.reto,L.retoHoy[p.id]||0),ok=h>=p.reto;
     return '<button class="practica g-p-'+p.id+(ok?' ok':'')+'" data-a="practica" data-p="'+esc(p.id)+'">'+ic(ok?'check':p.ic)+
-      '<span><b>'+esc(p.nombre)+'</b><small>'+(ok?'Reto hecho · puedes seguir':h+'/'+RETO.n+' aciertos hoy · +'+RETO.pts)+'</small></span></button>';
+      '<span><b>'+esc(p.nombre)+'</b><small>'+(ok?'Reto hecho · puedes seguir':h+'/'+p.reto+' aciertos hoy · +'+RETO.pts)+'</small></span></button>';
   }).join('')+'</div></div>';
 }
-/* 5 preguntas de la práctica: primero las falladas, luego las que nunca ha visto, luego el resto */
+/* Ronda de la práctica (tantas preguntas como pide su reto): primero las falladas, luego las que nunca ha visto, luego el resto */
 function empezarPractica(id){
   const p=PRACTICAS.find(x=>x.id===id);if(!p)return;
   const Q=preguntasDePractica(id),F=falladas(),vistas=new Set();
   Datos.resultados().forEach(r=>(r.detalle||[]).forEach(d=>vistas.add(d.id)));
   const orden=barajar(Q.filter(q=>F.has(q.id))).concat(barajar(Q.filter(q=>!F.has(q.id)&&!vistas.has(q.id))),barajar(Q.filter(q=>!F.has(q.id)&&vistas.has(q.id))));
-  empezar(orden.slice(0,RETO.n));E.sesion.practica=id;
+  empezar(orden.slice(0,p.reto));E.sesion.practica=id;
 }
 /* Recuadro de «hoy» en el inicio. Por la tarde avisa si la racha está en peligro. */
 function bannerHoy(){
@@ -1095,7 +1096,7 @@ function logrosDe(nv,L){
   if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({g:'combo',ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
   if(nv.temas>0)out.push({g:'crea',ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
   else if(nv.preguntas>0)out.push({g:'crea',ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).pregunta+' puntos por cada una (hasta '+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).topeTemaDia+' por tema y día).'});
-  (nv.retos||[]).forEach(p=>out.push({g:'p-'+p.id,ic:p.ic,t:'¡Reto de '+p.nombre.toLowerCase()+' del día!',x:'Has acertado '+RETO.n+' de '+p.nombre.toLowerCase()+' hoy. +'+RETO.pts+' puntos.'}));
+  (nv.retos||[]).forEach(p=>out.push({g:'p-'+p.id,ic:p.ic,t:'¡Reto de '+p.nombre.toLowerCase()+' del día!',x:'Has acertado '+p.reto+' de '+p.nombre.toLowerCase()+' hoy. +'+RETO.pts+' puntos.'}));
   if(nv.estrenos>0)out.push({g:'crea',ic:'check',t:'¡Tema estrenado!',x:'Has repasado un tema que subiste tú. +'+SUBIR.estreno+' puntos.'});
   nv.medallas.forEach(m=>out.push({g:m.grupo,ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
   return out;
@@ -1204,7 +1205,7 @@ function renderLogros(){
       '<li><b>'+SUBIR2.pregunta+'</b> por cada pregunta nueva que subas (hasta '+SUBIR2.topeTemaDia+' por tema y día)</li>'+
       '<li><b>+'+SUBIR.tema+'</b> por cada tema nuevo con al menos '+SUBIR.minTema+' preguntas</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
-      (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+RETO.n+' aciertos de '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.nombre.toLowerCase()).join(' o de ')+' en el día</li>':'')+
+      (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
       '<li>Cada medalla da puntos extra</li></ul></details>';
 }
 /* Empezar de cero (con el PIN): todo lo anterior deja de contar, pero no se borra */
