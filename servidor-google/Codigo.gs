@@ -99,7 +99,9 @@ function doPost(e) {
       return json(ok ? {ok:true} : {ok:false, error:'no se ha encontrado'});
     }
     if (d.accion === 'resultado') {
-      var datos = JSON.stringify(d.datos || {});
+      // «recibido»: hora real del servidor, para que no valga cambiar la fecha del móvil
+      var dd = d.datos || {}; dd.recibido = new Date().toISOString();
+      var datos = JSON.stringify(dd);
       if (datos.length > 20000) return json({ok:false, error:'resultado demasiado grande'});
       var hr = hoja('Resultados', CAB_R);
       var rid = String((d.datos && d.datos.id) || Utilities.getUuid());

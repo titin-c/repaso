@@ -399,3 +399,6 @@ a.btn{text-decoration:none}
 .practica small{display:block;font-size:12px;color:var(--muted)}
 .practica.ok{background:linear-gradient(135deg,var(--pc) 0%,var(--pc2) 100%)}
 .switch.sin-puntos{margin:0 0 4px;border-top:1px solid var(--line)}
+
+/* Número de versión, pequeño, en una esquina de la pantalla de carga */
+.splash-v{position:fixed;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));font-size:11px;letter-spacing:.08em;color:var(--muted)}

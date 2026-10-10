@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='15';
+const VERSION='16';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -500,7 +500,8 @@ const Datos={
     const todos=this.archivos.concat(this.subidas);
     canonizar(todos.map(a=>a.preguntas).concat(todos.map(a=>a.todas||[])),this.alias);
     const m=new Map();
-    todos.forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;m.set(q.id,q)}));
+    /* dePadres: preguntas de base o subidas con «no dar puntos» (las que pone papá o mamá) */
+    todos.forEach(a=>a.preguntas.forEach(q=>{q.archivo=a.nombre;q.dePadres=!a.id||!!a.sinPuntos;m.set(q.id,q)}));
     this.base=Array.from(m.values()).filter(q=>!esOculto(q));
   },
   todas(){
@@ -514,14 +515,26 @@ const Datos={
     const loc=ls.get(LS.resultados,[]),key=this.ver+'|'+this.resSrv.length+'|'+loc.length+'|'+this.inicio;
     if(this._memo&&this._memo.key===key)return this._memo.R;
     const m=new Map(),ini=this.inicio;
-    this.resSrv.concat(loc).forEach(r=>{if(r&&r.fecha&&(!ini||String(r.fecha)>=ini))m.set(r.id||r.fecha,r)});
-    let R=Array.from(m.values()).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)))
-      .map(r=>Object.assign({},r,{detalle:(r.detalle||[]).map(d=>Object.assign({},d))}));
+    /* la copia del servidor manda (trae «recibido», la hora real a la que llegó) */
+    loc.concat(this.resSrv).forEach(r=>{if(r&&r.fecha)m.set(r.id||r.fecha,r)});
+    let R=Array.from(m.values()).map(r=>{
+      r=Object.assign({},r,{detalle:(r.detalle||[]).map(d=>Object.assign({},d))});
+      /* reloj del móvil cambiado: si la ronda dice una hora muy distinta de cuando llegó al servidor, vale la del servidor */
+      if(r.recibido){const f=Date.parse(r.fecha),rc=Date.parse(r.recibido);if(rc&&(f>rc+10*60e3||rc-f>3*3600e3))r.fecha=r.recibido}
+      return r;
+    }).filter(r=>!ini||String(r.fecha)>=ini).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
     canonizar(R.map(r=>r.detalle).concat([R.filter(r=>r.curso&&r.asignatura)]),this.alias);
+    /* «Creo que mi respuesta está bien»: como mucho AVISOS_DIA al día dejan de contar como fallo; los demás, sí cuentan */
+    const avDia={};
     R=R.map(r=>{
       if(!r.detalle.length)return esOculto(r)?null:r;
-      const det=r.detalle.filter(d=>!esOculto(d)&&!d.aviso);
-      if(!det.length)return null;
+      const k=diaClave(r.fecha);r.avisos=0;
+      const det=r.detalle.filter(d=>{
+        if(esOculto(d))return false;
+        if(d.aviso&&!d.ok){if((avDia[k]||0)<AVISOS_DIA){avDia[k]=(avDia[k]||0)+1;r.avisos++;return false}delete d.aviso}
+        return true;
+      });
+      if(!det.length)return r.avisos?Object.assign(r,{detalle:[],total:0,aciertos:0}):null;
       if(esOculto(r))['curso','asignatura','tema'].forEach(k=>{r[k]=null});
       return Object.assign(r,{detalle:det,total:det.length,aciertos:det.filter(d=>d.ok).length});
     }).filter(Boolean);
@@ -571,7 +584,7 @@ function red(p){pendientes++;marcarCarga();return Promise.resolve(p).finally(()=
 function marcarCarga(){const c=$('#carga');if(c)c.classList.toggle('on',pendientes>0)}
 const FRASE='La paciencia es la madre de todas las ciencias';
 const splash=(peq)=>'<div class="splash'+(peq?' peq':'')+'" role="status">'+(peq?'':'<p class="splash-marca">re<b>PEPA</b>so</p>')+
-  '<div class="linea carga-linea" aria-hidden="true"><i></i></div><p class="splash-t">Cargando…</p><p class="splash-f">'+FRASE+'</p></div>';
+  '<div class="linea carga-linea" aria-hidden="true"><i></i></div><p class="splash-t">Cargando…</p><p class="splash-f">'+FRASE+'</p>'+(peq?'':'<span class="splash-v">v'+VERSION+'</span>')+'</div>';
 
 /* ---------- estado y navegación ---------- */
 const E={mes:0,soloFallos:ls.get('repaso.soloFallos.v1',false),pant:'inicio',filtro:ls.get(LS.filtro,{curso:TODOS,asignatura:TODOS,tema:TODOS}),num:ls.get(LS.num,10),sesion:null,ed:null,
@@ -722,8 +735,13 @@ function feedback(s,q,ok,extra,tuya){
 }
 
 /* «Creo que mi respuesta está bien»: la pregunta no cuenta como fallo y le llega a papá o mamá para revisarla */
+function avisosHoy(){
+  const hoy=diaClave(new Date());
+  return Datos.resultados().filter(r=>diaClave(r.fecha)===hoy).reduce((n,r)=>n+(r.avisos||0),0)+((E.sesion&&E.sesion.resp)||[]).filter(r=>r&&r.aviso&&!r.ok).length;
+}
 function avisarError(){
   const s=E.sesion;if(!s)return;
+  if(!(s.resp[s.i]||{}).ok&&avisosHoy()>=AVISOS_DIA){const c=$('#avisoErr');if(c)c.innerHTML='<p class="fb-nota aviso-ok">'+ic('info')+'<span>Hoy ya has avisado de '+AVISOS_DIA+' preguntas. Si crees que esta también está mal, díselo a papá o mamá.</span></p>';return}
   const it=s.preguntas[s.i],q=it.q,r=s.resp[s.i]||{};
   const tuya=r.escrita!=null?r.escrita:(r.elegida!=null?q.opciones[r.elegida]:'');
   r.aviso=true;
@@ -838,6 +856,7 @@ function renderProgreso(){
      5 por pregunta nueva (máx. 30 por tema y día), +100 por tema nuevo (si trae al menos 10 preguntas)
      y +50 cuando, después de subirlo, lo repasa: 10 respuestas de ese tema con 7 aciertos («tema estrenado»).
      Si papá o mamá eliminan un tema de prueba o basura, sus puntos desaparecen. */
+const AVISOS_DIA=3;
 const META=Object.assign({preguntas:15,aciertos:11},CONFIG.meta||{});
 /* Reglas de puntos. Desde CONFIG.puntosNuevosDesde (en config.js) se usan las de «aprender»:
    lo que da puntos es aprender algo, no repetir lo que ya se sabe. Repetir un tema se puede siempre
@@ -847,7 +866,7 @@ const META=Object.assign({preguntas:15,aciertos:11},CONFIG.meta||{});
      · máximo PUNTOS.topeDia puntos al día por responder (después se puede seguir practicando)
      · +25 por cada asignatura más que la primera repasada ese día (con 5 respuestas o más), hasta +50 */
 const PUNTOS={acierto:10,recuperada:5,dia:50,nueva:10,recuperar:15,repaso:4,repetida:0,topeDia:300,variedad:25,variedadMin:5,variedadMax:2};
-const SUBIR={pregunta:5,topeTemaDia:30,tema:100,minTema:10,estreno:50,estrenoN:10,estrenoOk:7};
+const SUBIR={pregunta:5,topeTemaDia:30,tema:100,minTema:10,estreno:50,estrenoN:10,estrenoOk:7,topeDia:150};
 const SUBIR2={pregunta:3,topeTemaDia:20};
 const DESDE_NUEVOS=CONFIG.puntosNuevosDesde==null?'2026-10-10':String(CONFIG.puntosNuevosDesde);
 const reglasNuevas=k=>!DESDE_NUEVOS||k>=DESDE_NUEVOS;
@@ -860,8 +879,10 @@ const PRACTICAS=(CONFIG.practicas||[
 ]).map(p=>Object.assign({reto:5},p,{claves:(p.palabras||[]).map(w=>clave(w))}));
 /* reto diario de cada práctica: N aciertos (que den puntos) en el día → +20. Ortografía 20, problemas 5 */
 const RETO={pts:20};
+/* Solo cuentan las preguntas que pone papá o mamá (subidas «sin puntos»): así no se puede rellenar
+   la práctica con preguntas fáciles inventadas para sacar el reto. */
 function practicaDe(q){
-  if(!q)return null;
+  if(!q||!q.dePadres)return null;
   const t=clave(q.tema||'')+'|'+clave(q.asignatura||'');
   return PRACTICAS.find(p=>p.claves.some(k=>t.indexOf(k)>=0)||(p.id==='ortografia'&&q.exacta))||null;
 }
@@ -878,8 +899,8 @@ const MEDALLAS=[
   {id:'subida1',grupo:'crea',ic:'upload',nombre:'Primer tema subido',txt:'Sube tu primer tema nuevo',pts:50,v:L=>L.temasNuevos,meta:1},
   ...[[5,200],[10,400],[25,1000],[50,2000]].map(([n,p])=>({id:'temas'+n,grupo:'crea',ic:'upload',nombre:n+' temas subidos',txt:'Sube '+n+' temas nuevos',pts:p,v:L=>L.temasNuevos,meta:n})),
   ...[[100,150],[250,300],[500,600],[1000,1200]].map(([n,p])=>({id:'preg'+n,grupo:'crea',ic:'plus',nombre:n+' preguntas creadas',txt:'Sube '+n+' preguntas nuevas',pts:p,v:L=>L.preguntasNuevas,meta:n})),
-  {id:'productivo',grupo:'crea',ic:'sparkle',nombre:'Día productivo',txt:'Sube 3 temas nuevos el mismo día',pts:150,v:L=>L.diasProductivos,cada:1},
-  {id:'maraton',grupo:'crea',ic:'bolt',nombre:'Maratón de temas',txt:'Sube 5 temas nuevos el mismo día',pts:300,v:L=>L.diasMaraton,cada:1},
+  {id:'productivo',grupo:'crea',ic:'sparkle',nombre:'Día productivo',txt:'Sube 3 temas nuevos el mismo día',pts:150,v:L=>L.diasProductivos,meta:1},
+  {id:'maraton',grupo:'crea',ic:'bolt',nombre:'Maratón de temas',txt:'Sube 5 temas nuevos el mismo día',pts:300,v:L=>L.diasMaraton,meta:1},
   ...[[1,50],[5,250],[20,800]].map(([n,p])=>({id:'estreno'+n,grupo:'crea',ic:'check',nombre:n===1?'Tema estrenado':n+' temas estrenados',txt:'Repasa '+(n===1?'un tema que hayas subido':n+' temas que hayas subido'),pts:p,v:L=>L.temasEstrenados,meta:n})),
   ...[].concat(...PRACTICAS.map(p=>[
     ...[[25,100],[100,300],[250,600],[500,1200]].map(([n,pts])=>({id:p.id+n,grupo:'p-'+p.id,ic:p.ic,nombre:p.nombre+': '+n+' aciertos',txt:'Acierta '+n+' preguntas de '+p.nombre.toLowerCase(),pts,v:L=>(L.prac[p.id]||{}).ok||0,meta:n})),
@@ -906,7 +927,7 @@ function calcularLogros(R,ahora){
   R=R||Datos.resultados();ahora=ahora||new Date();
   const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora),porDia:{}};
   const sumar=(k,n)=>{L.porDia[k]=(L.porDia[k]||0)+n};
-  const ult=new Map(),okDia=new Map(),respDia={},asigDia={},porId=new Map(Datos.todas().map(q=>[q.id,q]));
+  const ult=new Map(),falloDia=new Map(),okDia=new Map(),respDia={},asigDia={},subDia={},porId=new Map(Datos.todas().map(q=>[q.id,q]));
   L.prac={};PRACTICAS.forEach(p=>{L.prac[p.id]={ok:0,retos:0,dia:{}}});
   L.desglose={};
   R.forEach(r=>{
@@ -917,17 +938,19 @@ function calcularLogros(R,ahora){
       if(nuevas){const ya=respDia[k]||0,m=Math.max(0,Math.min(n,PUNTOS.topeDia-ya));if(m<n)g.tope=true;respDia[k]=ya+m;n=m}
       L.puntosRespuestas+=n;sumar(k,n);g.puntos+=n;
     };
+    if(r.avisos)L.combo=0;   /* un aviso no corta los fallos… pero tampoco deja seguir la serie de aciertos */
     if(det)det.forEach(x=>{
       d.n++;
       if(nuevas&&x.asignatura){const a=asigDia[k]||(asigDia[k]={});a[x.asignatura]=(a[x.asignatura]||0)+1}
       if(x.ok){
         d.ok++;
-        const recuperada=ult.get(x.id)===false;
+        /* recuperar una fallada da más solo si la falló otro día (fallar adrede y acertarla al momento no compensa) */
+        const recuperada=ult.get(x.id)===false&&(!nuevas||falloDia.get(x.id)!==k);
         /* con las reglas nuevas, repetir hoy una ya acertada no alarga la serie de aciertos (tampoco la corta) */
         if(!nuevas||recuperada||okDia.get(x.id)!==k)L.combo++;
         if(recuperada)L.recuperadas++;
         const repetidaHoy=nuevas&&!recuperada&&okDia.get(x.id)===k;
-        const pr=practicaDe(porId.get(x.id)||x);
+        const pr=practicaDe(porId.get(x.id));
         if(pr&&!repetidaHoy){const P=L.prac[pr.id];P.ok++;P.dia[k]=(P.dia[k]||0)+1;
           if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
         if(!nuevas)dar(PUNTOS.acierto+(recuperada?PUNTOS.recuperada:0));
@@ -936,7 +959,7 @@ function calcularLogros(R,ahora){
         else if(okDia.get(x.id)===k){g.repetidas++;dar(PUNTOS.repetida)}
         else{g.repaso++;dar(PUNTOS.repaso)}
         if(x.id)okDia.set(x.id,k);
-      }else L.combo=0;
+      }else{L.combo=0;if(x.id&&ult.get(x.id)!==false)falloDia.set(x.id,k)}
       if(L.combo>L.mejorCombo)L.mejorCombo=L.combo;
       if(x.id)ult.set(x.id,!!x.ok);
     });
@@ -982,7 +1005,7 @@ function calcularLogros(R,ahora){
 /* Puntos por subir preguntas. Una pregunta es «nueva» la primera vez que aparece su id;
    editar o volver a subir lo mismo no suma otra vez. Lo subido antes de «empezar de cero» no cuenta. */
 function subidasLogros(L,R,sumar){
-  Object.assign(L,{puntosSubidas:0,preguntasNuevas:0,temasNuevos:0,diasProductivos:0,diasMaraton:0,temasEstrenados:0});
+  Object.assign(L,{_subDia:{},puntosSubidas:0,preguntasNuevas:0,temasNuevos:0,diasProductivos:0,diasMaraton:0,temasEstrenados:0});
   const ini=Datos.inicio,vistos=new Set(),temas=new Set(),porDiaTema={},temasDia={},creados=[];
   Datos.archivos.forEach(a=>a.preguntas.forEach(q=>{vistos.add(q.id);temas.add(q.curso+'|'+q.asignatura+'|'+q.tema)}));
   (Datos.subidas||[]).forEach(s=>{
@@ -1000,7 +1023,10 @@ function subidasLogros(L,R,sumar){
       const k=dia+'#'+t,ya=porDiaTema[k]||0,n=Math.max(0,Math.min(nuevas[t],S.topeTemaDia-ya));
       porDiaTema[k]=ya+nuevas[t];
       L.preguntasNuevas+=nuevas[t];
-      const pts=n*S.pregunta+(esNuevo?SUBIR.tema:0);L.puntosSubidas+=pts;sumar(dia,pts);
+      /* tope diario de puntos por subir (con las reglas nuevas): subir temas de relleno no compensa */
+      let pts=n*S.pregunta+(esNuevo?SUBIR.tema:0);
+      if(reglasNuevas(dia)){const ya2=L._subDia[dia]||0;pts=Math.max(0,Math.min(pts,SUBIR.topeDia-ya2));L._subDia[dia]=ya2+pts}
+      L.puntosSubidas+=pts;sumar(dia,pts);
       if(esNuevo){L.temasNuevos++;temasDia[dia]=(temasDia[dia]||0)+1;creados.push({t,fecha:String(s.fecha)})}
     });
   });
@@ -1196,7 +1222,7 @@ function renderLogros(){
     calendario(L)+medallasHTML(L)+premiosHTML(L)+
     '<details class="ver-texto"><summary>Cómo se ganan puntos</summary><ul class="reglas">'+
       '<li><b>'+PUNTOS.nueva+'</b> por cada pregunta que aciertas por primera vez</li>'+
-      '<li><b>'+PUNTOS.recuperar+'</b> si aciertas una que habías fallado</li>'+
+      '<li><b>'+PUNTOS.recuperar+'</b> si aciertas otro día una que habías fallado</li>'+
       '<li><b>'+PUNTOS.repaso+'</b> si ya la habías acertado otro día (repaso)</li>'+
       '<li><b>0</b> si ya la has acertado hoy: puedes repetir lo que quieras, pero los puntos son por aprender</li>'+
       '<li>Máximo <b>'+PUNTOS.topeDia+'</b> puntos al día por responder</li>'+
@@ -1204,6 +1230,7 @@ function renderLogros(){
       '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li>'+
       '<li><b>'+SUBIR2.pregunta+'</b> por cada pregunta nueva que subas (hasta '+SUBIR2.topeTemaDia+' por tema y día)</li>'+
       '<li><b>+'+SUBIR.tema+'</b> por cada tema nuevo con al menos '+SUBIR.minTema+' preguntas</li>'+
+      '<li>Máximo <b>'+SUBIR.topeDia+'</b> puntos al día por subir preguntas</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
       (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
       '<li>Cada medalla da puntos extra</li></ul></details>';
@@ -1800,7 +1827,7 @@ function renderEditor(){
       '<div class="field"><label class="lbl-f" for="edCurso">Curso</label><input class="in" id="edCurso" list="dl-c" data-f="curso" value="'+esc(ed.curso)+'" placeholder="'+(ed.mixto?'Varios':'Ej.: 5º Primaria')+'"></div>'+
       '<div class="field"><label class="lbl-f" for="edAsig">Asignatura</label><input class="in" id="edAsig" list="dl-a" data-f="asignatura" value="'+esc(ed.asignatura)+'" placeholder="'+(ed.mixto?'Varias':'Ej.: Ciencias Naturales')+'"></div>'+
       '<div class="field"><label class="lbl-f" for="edNombre">Nombre</label><input class="in" id="edNombre" data-f="nombre" value="'+esc(ed.nombre)+'" placeholder="'+esc(nombreArchivo())+'" autocapitalize="off" autocorrect="off" spellcheck="false"></div>'+
-      '<button class="switch" role="switch" data-a="edSinPuntos" aria-checked="'+!!ed.sinPuntos+'"><span>No dar puntos por estas preguntas<small>Para cuando las subes tú (papá o mamá)</small></span><span class="pista" aria-hidden="true"></span></button>'+
+      '<button class="switch" role="switch" data-a="edSinPuntos" aria-checked="'+!!ed.sinPuntos+'"'+(ed.bloqueoSinPuntos?' disabled':'')+'><span>No dar puntos por estas preguntas<small>'+(ed.bloqueoSinPuntos?'Las subió papá o mamá sin puntos: no se puede cambiar':'Para cuando las subes tú (papá o mamá)')+'</small></span><span class="pista" aria-hidden="true"></span></button>'+
     '</section>'+
     (ed.mixto?aviso('info','Este grupo tiene varios cursos o asignaturas. Si escribes un curso o una asignatura arriba, se cambiará en todas las preguntas.'):'')+
     ed.preguntas.map(qHTML).join('')+
@@ -1928,7 +1955,7 @@ function abrirArchivo(el){
      (si no, al guardar se volvería a la versión antigua) */
   const actual=new Map(Datos.base.map(q=>[q.id,q]));let nuevas=0;
   const lista=(a.todas&&a.todas.length?a.todas:a.preguntas).map(q=>{const c=actual.get(q.id);if(c&&a.preguntas.indexOf(c)<0){nuevas++;return c}return q});
-  E.ed=edDesde(lista,a.nombre,el.dataset.t==='s'?a.id:'');E.ed.sinPuntos=!!a.sinPuntos;
+  E.ed=edDesde(lista,a.nombre,el.dataset.t==='s'?a.id:'');E.ed.sinPuntos=!!a.sinPuntos;E.ed.bloqueoSinPuntos=!!a.sinPuntos;
   guardarBorrador();ir('editor');
   if(nuevas)toast(plural(nuevas,'pregunta se ha abierto en su versión corregida','preguntas se han abierto en su versión corregida')+'.');
 }
@@ -1981,7 +2008,7 @@ const A={
     catch(e){toast('No se ha podido deshacer: '+e.message+'.')}
   },
   impSinPuntos:el=>{E.imp.sinPuntos=!E.imp.sinPuntos;guardarImp();el.setAttribute('aria-checked',String(E.imp.sinPuntos))},
-  edSinPuntos:el=>{E.ed.sinPuntos=!E.ed.sinPuntos;guardarBorrador();el.setAttribute('aria-checked',String(E.ed.sinPuntos))},
+  edSinPuntos:el=>{if(E.ed.bloqueoSinPuntos)return;E.ed.sinPuntos=!E.ed.sinPuntos;guardarBorrador();el.setAttribute('aria-checked',String(E.ed.sinPuntos))},
   practica:el=>empezarPractica(el.dataset.p),
   dudosas:()=>{const r=E.rev;if(!r)return;r.incluirDudosas=!r.incluirDudosas;pintarRevision()},
   decNombre:el=>{const r=E.rev;if(!r)return;r.dec[el.dataset.k]=el.dataset.v==='1';pintarRevision();const b=$('[data-a=decNombre][data-k="'+CSS.escape(el.dataset.k)+'"][data-v="'+el.dataset.v+'"]');if(b)b.focus({preventScroll:true})},
