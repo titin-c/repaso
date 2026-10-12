@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='17';
+const VERSION='18';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -582,7 +582,7 @@ const etiquetaOcupado=(a,el)=>typeof OCUPADO[a]==='function'?OCUPADO[a](el):(OCU
 let pendientes=0;
 function red(p){pendientes++;marcarCarga();return Promise.resolve(p).finally(()=>{pendientes--;marcarCarga()})}
 function marcarCarga(){const c=$('#carga');if(c)c.classList.toggle('on',pendientes>0)}
-const FRASE='La paciencia es la madre de todas las ciencias';
+const FRASE='La paciencia es la madre de todas las\u00a0ciencias';
 const splash=(peq)=>'<div class="splash'+(peq?' peq':'')+'" role="status">'+(peq?'':'<p class="splash-marca">re<b>PEPA</b>so</p>')+
   '<div class="linea carga-linea" aria-hidden="true"><i></i></div><p class="splash-t">Cargando…</p><p class="splash-f">'+FRASE+'</p>'+(peq?'':'<span class="splash-v">v'+VERSION+'</span>')+'</div>';
 
@@ -651,7 +651,18 @@ function renderInicio(){
   $('#go').onclick=()=>empezar(ronda(f));
 }
 /* Preguntas cuya última respuesta fue un fallo (en cuanto se aciertan, salen de la lista) */
+/* Fallos pendientes: una fallada sale de la lista cuando se acierta OTRO día (acertarla justo después no vale,
+   así vuelve a salir al día siguiente para comprobar que se ha aprendido) */
 function falladas(){
+  const pend=new Map();
+  Datos.resultados().forEach(r=>{const k=diaClave(r.fecha);(r.detalle||[]).forEach(d=>{
+    if(!d||!d.id)return;
+    if(!d.ok){if(!pend.has(d.id))pend.set(d.id,k)}
+    else if(pend.has(d.id)&&pend.get(d.id)!==k)pend.delete(d.id);
+  })});
+  return new Set(pend.keys());
+}
+function falladasViejo(){
   const ult=new Map();
   Datos.resultados().forEach(r=>(r.detalle||[]).forEach(d=>{if(d&&d.id)ult.set(d.id,!!d.ok)}));
   const out=new Set();ult.forEach((ok,id)=>{if(!ok)out.add(id)});return out;
@@ -877,6 +888,18 @@ const SUBIR={pregunta:5,topeTemaDia:30,tema:100,minTema:10,estreno:50,estrenoN:1
 const SUBIR2={pregunta:3,topeTemaDia:20};
 const DESDE_NUEVOS=CONFIG.puntosNuevosDesde==null?'2026-10-10':String(CONFIG.puntosNuevosDesde);
 const reglasNuevas=k=>!DESDE_NUEVOS||k>=DESDE_NUEVOS;
+/* Reglas v3 (desde CONFIG.puntosV3Desde): lo ya ganado antes de esa fecha se queda como estaba.
+   nueva 7 · recuperada otro día 8 (el mismo día, 7) · repaso 3 · repetida hoy 1 · cada acierto da al menos 1
+   día: enteros hasta 150, mitad hasta 300, ⅛ después · semana: lo de responder por encima de 800 vale la mitad
+   día completado 40 · Semana/Quincena/Mes 50/100/250 · subir: 1.er test del día 100, 2.º 50, resto 10,
+   proporcional si trae menos de 25 preguntas nuevas (mínimo 5) · el premio más caro pide 100 días completados */
+const DESDE_V3=CONFIG.puntosV3Desde==null?'2026-10-13':String(CONFIG.puntosV3Desde);
+const reglasV3=k=>!DESDE_V3||k>=DESDE_V3;
+const V3={nueva:7,recuperar:8,repaso:3,repetida:1,minimo:1,tramo1:150,tramo2:300,resto:.125,semana:800,dia:40,
+  subir:[100,50,10],subirLleno:25,subirMin:5,granDias:100};
+const curvaV3=x=>Math.min(x,V3.tramo1)+Math.max(0,Math.min(x,V3.tramo2)-V3.tramo1)*.5+Math.max(0,x-V3.tramo2)*V3.resto;
+const curvaSemana=x=>Math.min(x,V3.semana)+Math.max(0,x-V3.semana)*.5;
+const semanaDe=k=>{const p=k.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]);d.setDate(d.getDate()-(d.getDay()+6)%7);return diaClave(d)};
 /* ---------- Prácticas: cosas que no son un tema (ortografía, problemas) y se entrenan un poco cada día ----------
    Una pregunta es de una práctica si su tema o asignatura contiene alguna de sus palabras
    (o, en ortografía, si la pregunta es de escritura exacta). Se pueden cambiar en config.js → practicas. */
@@ -897,9 +920,9 @@ const preguntasDePractica=id=>Datos.todas().filter(q=>{const p=practicaDe(q);ret
 const MEDALLAS=[
   {id:'primera',grupo:'otras',ic:'medal',nombre:'Primera ronda',txt:'Termina tu primera ronda',pts:20,v:L=>L.rondas,meta:1},
   ...[[3,50],[7,150],[15,300],[30,600],[60,1000],[100,2000]].map(([n,p])=>({id:'racha'+n,grupo:'racha',ic:'flame',nombre:n+' días seguidos',txt:'Haz '+n+' días seguidos',pts:p,v:L=>L.mejorRacha,meta:n})),
-  {id:'semana',grupo:'dias',ic:'calendar',nombre:'Semana',txt:'Cada 7 días hechos',pts:100,v:L=>L.diasHechos,cada:7},
-  {id:'quincena',grupo:'dias',ic:'calendar',nombre:'Quincena',txt:'Cada 15 días hechos',pts:200,v:L=>L.diasHechos,cada:15},
-  {id:'mes',grupo:'dias',ic:'calendar',nombre:'Mes',txt:'Cada 30 días hechos',pts:500,v:L=>L.diasHechos,cada:30},
+  {id:'semana',grupo:'dias',ic:'calendar',nombre:'Semana',txt:'Cada 7 días hechos',pts:50,ptsAntes:100,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:7},
+  {id:'quincena',grupo:'dias',ic:'calendar',nombre:'Quincena',txt:'Cada 15 días hechos',pts:100,ptsAntes:200,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:15},
+  {id:'mes',grupo:'dias',ic:'calendar',nombre:'Mes',txt:'Cada 30 días hechos',pts:250,ptsAntes:500,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:30},
   ...[[10,50],[25,150],[50,300],[100,600]].map(([n,p])=>({id:'combo'+n,grupo:'combo',ic:'bolt',nombre:n+' aciertos seguidos',txt:'Acierta '+n+' seguidas sin fallar',pts:p,v:L=>L.mejorCombo,meta:n})),
   ...[[50,500],[100,1000],[200,2000],[365,4000]].map(([n,p])=>({id:'total'+n,grupo:'dias',ic:'calendar',nombre:n+' días hechos',txt:'Completa '+n+' días en total',pts:p,v:L=>L.diasHechos,meta:n})),
   ...[[30,'Un mes jugando',200],[182,'Medio año jugando',1000],[365,'Un año jugando',3000]].map(([n,t,p])=>({id:'tiempo'+n,grupo:'tiempo',ic:'star',nombre:t,txt:'Sigue jugando '+(n===30?'un mes':n===182?'medio año':'un año')+' desde tu primera ronda',pts:p,v:L=>L.antiguedad,meta:n})),
@@ -922,8 +945,8 @@ const PREMIOS_BASE=[
   ['tareas','Un día sin tareas de casa',800],['euros5','5 €',1000],['euros10','10 €',1800],
   ['cena','Merienda o cena fuera con una amiga',2000],['pijamas','Fiesta de pijamas en casa',2500],['euros20','20 €',3500],
   ['tarjeta','Tarjeta regalo de 25 € de tu tienda favorita',4500],['cine','Cine con amigas: entradas y palomitas',5000],
-  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',13000],['auriculares','Auriculares inalámbricos',16000],
-  ['parque','Día en un parque de atracciones o acuático',20000],['gran','Gran premio: lo que tú elijas hasta 150 €',35000]
+  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',10000],['auriculares','Auriculares inalámbricos',12000],
+  ['parque','Día en un parque de atracciones o acuático',15000],['gran','Gran premio: lo que tú elijas hasta 150 €',25000]
 ].map(([id,nombre,puntos])=>({id,nombre,puntos}));
 
 const diaClave=d=>{d=d instanceof Date?d:new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -934,22 +957,32 @@ function calcularLogros(R,ahora){
   R=R||Datos.resultados();ahora=ahora||new Date();
   const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora),porDia:{}};
   const sumar=(k,n)=>{L.porDia[k]=(L.porDia[k]||0)+n};
-  const ult=new Map(),falloDia=new Map(),okDia=new Map(),respDia={},asigDia={},subDia={},porId=new Map(Datos.todas().map(q=>[q.id,q]));
+  const ult=new Map(),falloDia=new Map(),okDia=new Map(),respDia={},semDia={},asigDia={},subDia={},porId=new Map(Datos.todas().map(q=>[q.id,q]));
   L.prac={};PRACTICAS.forEach(p=>{L.prac[p.id]={ok:0,retos:0,dia:{}}});
   L.desglose={};
   R.forEach(r=>{
     const k=diaClave(r.fecha),d=L.dias[k]||(L.dias[k]={n:0,ok:0,hecho:false}),nuevas=reglasNuevas(k);
     const det=(r.detalle&&r.detalle.length)?r.detalle:null;
     const fac=factorRonda(det?det.length:0);
-    const g=L.desglose[r.id||r.fecha]={nuevas:0,recuperadas:0,repaso:0,repetidas:0,reducido:false,fac,puntos:0,reglas:nuevas};
+    const g=L.desglose[r.id||r.fecha]={nuevas:0,recuperadas:0,repaso:0,repetidas:0,reducido:false,fac,puntos:0,reglas:nuevas,v3:reglasV3(k)};
     /* libre: no entra en el rendimiento decreciente (problemas) */
+    const v3=reglasV3(k),sk=semanaDe(k);
     const dar=(n,libre)=>{
-      if(nuevas){
+      if(v3){
+        n*=fac;
+        if(!libre){
+          const ya=respDia[k]||0,v=curvaV3(ya+n)-curvaV3(ya);respDia[k]=ya+n;
+          const ys=semDia[sk]||0,w=curvaSemana(ys+v)-curvaSemana(ys);semDia[sk]=ys+v;
+          if(w<n-1e-9)g.reducido=true;n=w;
+        }
+        n=Math.max(V3.minimo,n);   /* cada acierto da al menos 1 punto */
+      }else if(nuevas){
         n*=fac;
         if(!libre){const ya=respDia[k]||0,v=curvaDia(ya+n)-curvaDia(ya);if(v<n-1e-9)g.reducido=true;respDia[k]=ya+n;n=v}
       }
       L.puntosRespuestas+=n;sumar(k,n);g.puntos+=n;
     };
+    const val=t=>v3?V3[t]:PUNTOS[t];
     if(r.avisos)L.combo=0;   /* un aviso no corta los fallos… pero tampoco deja seguir la serie de aciertos */
     if(det)det.forEach(x=>{
       d.n++;
@@ -967,17 +1000,17 @@ function calcularLogros(R,ahora){
           if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
         const libre=!!(pr&&pr.id==='problemas');
         if(!nuevas)dar(PUNTOS.acierto+(recuperada?PUNTOS.recuperada:0));
-        else if(recuperada){g.recuperadas++;dar(PUNTOS.recuperar,libre)}
-        else if(!okDia.has(x.id)){g.nuevas++;dar(PUNTOS.nueva,libre)}
-        else if(okDia.get(x.id)===k){g.repetidas++;dar(PUNTOS.repetida,libre)}
-        else{g.repaso++;dar(PUNTOS.repaso,libre)}
+        else if(recuperada){g.recuperadas++;dar(val('recuperar'),libre)}
+        else if(!okDia.has(x.id)){g.nuevas++;dar(val('nueva'),libre)}
+        else if(okDia.get(x.id)===k){g.repetidas++;dar(val('repetida'),libre)}
+        else{g.repaso++;dar(val('repaso'),libre)}
         if(x.id)okDia.set(x.id,k);
       }else{L.combo=0;if(x.id&&ult.get(x.id)!==false)falloDia.set(x.id,k)}
       if(L.combo>L.mejorCombo)L.mejorCombo=L.combo;
       if(x.id)ult.set(x.id,!!x.ok);
     });
     else{d.n+=r.total||0;d.ok+=r.aciertos||0}
-    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;sumar(k,PUNTOS.dia)}
+    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;const b=reglasV3(k)?V3.dia:PUNTOS.dia;L.puntosDias=(L.puntosDias||0)+b;sumar(k,b)}
   });
   /* variedad: +25 por cada asignatura más (con 5 respuestas o más) el mismo día */
   L.puntosVariedad=0;
@@ -988,7 +1021,8 @@ function calcularLogros(R,ahora){
   });
   subidasLogros(L,R,sumar);
   const hechos=Object.keys(L.dias).filter(k=>L.dias[k].hecho).sort();
-  L.diasHechos=hechos.length;
+  L.diasHechos=hechos.length;L.puntosDias=L.puntosDias||0;
+  L.diasHechosAntes=hechos.filter(k=>!reglasV3(k)).length;
   /* días desde la primera ronda hasta la última */
   L.antiguedad=R.length?Math.round((new Date(diaClave(R[R.length-1].fecha)+'T12:00')-new Date(diaClave(R[0].fecha)+'T12:00'))/864e5):0;
   /* mejor racha */
@@ -1008,7 +1042,9 @@ function calcularLogros(R,ahora){
   L.puntosRetos=L.puntosRetos||0;
   L.retoHoy={};PRACTICAS.forEach(p=>{L.retoHoy[p.id]=L.prac[p.id].dia[L.hoy]||0});
   L.puntosRespuestas=Math.round(L.puntosRespuestas);
-  L.puntos=L.puntosRetos+L.puntosRespuestas+L.puntosVariedad+L.diasHechos*PUNTOS.dia+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.veces*x.m.pts,0);
+  const ptsMed=x=>{if(!x.m.ptsAntes)return x.veces*x.m.pts;const a=Math.min(x.veces,Math.floor(x.m.antes(L)/x.m.cada));return a*x.m.ptsAntes+(x.veces-a)*x.m.pts};
+  L.medallas.forEach(x=>{x.puntos=ptsMed(x)});
+  L.puntos=L.puntosRetos+L.puntosRespuestas+L.puntosVariedad+L.puntosDias+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.puntos,0);
   /* ritmo: puntos al día de media en las dos últimas semanas (sin contar medallas) */
   let suma=0;for(let i=0;i<14;i++)suma+=L.porDia[sumarDias(L.hoy,-i)]||0;
   L.ritmo=suma/14;
@@ -1029,6 +1065,20 @@ function subidasLogros(L,R,sumar){
       if(esOculto(q)||vistos.has(q.id))return;vistos.add(q.id);
       const t=q.curso+'|'+q.asignatura+'|'+q.tema;nuevas[t]=(nuevas[t]||0)+1;
     });
+    if(reglasV3(dia)){
+      /* v3: se puntúa el test entero según el orden del día y su tamaño */
+      let total=0;Object.keys(nuevas).forEach(t=>{
+        total+=nuevas[t];const esNuevo=!temas.has(t)&&nuevas[t]>=SUBIR.minTema;
+        if(esNuevo||nuevas[t]>=SUBIR.minTema)temas.add(t);
+        if(cuenta&&esNuevo){L.temasNuevos++;temasDia[dia]=(temasDia[dia]||0)+1;creados.push({t,fecha:String(s.fecha)})}
+      });
+      if(!cuenta||total<V3.subirMin)return;
+      L.preguntasNuevas+=total;
+      const orden=L._subDia[dia]=(L._subDia[dia]||0)+1,base=V3.subir[Math.min(orden,V3.subir.length)-1];
+      const pts=Math.round(base*Math.min(1,total/V3.subirLleno));
+      L.puntosSubidas+=pts;sumar(dia,pts);L.ultimaSubida={pts,orden,total};
+      return;
+    }
     Object.keys(nuevas).forEach(t=>{
       const esNuevo=!temas.has(t)&&nuevas[t]>=SUBIR.minTema;
       if(esNuevo||nuevas[t]>=SUBIR.minTema)temas.add(t);
@@ -1064,6 +1114,7 @@ function novedades(antes,despues){
     record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
     combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
     temas:despues.temasNuevos-antes.temasNuevos,
+    subida:despues.ultimaSubida&&(!antes.ultimaSubida||despues.puntosSubidas>antes.puntosSubidas)?despues.ultimaSubida:null,
     preguntas:despues.preguntasNuevas-antes.preguntasNuevas,
     estrenos:despues.temasEstrenados-antes.temasEstrenados,
     retos:PRACTICAS.filter(p=>despues.prac[p.id].retos>antes.prac[p.id].retos),
@@ -1115,11 +1166,12 @@ function celebracion(nv,L){
   h+='<p class="pts-gan">+'+nv.puntos.toLocaleString('es-ES')+'<small>puntos</small></p>';
   const g=nv.desglose;
   if(g&&g.reglas){
-    const part=[[g.nuevas,'nueva','nuevas','×'+PUNTOS.nueva],[g.recuperadas,'recuperada','recuperadas','×'+PUNTOS.recuperar],[g.repaso,'de repaso','de repaso','×'+PUNTOS.repaso],[g.repetidas,'ya acertada hoy','ya acertadas hoy','sin puntos']].filter(x=>x[0]);
+    const VV=g.v3?V3:PUNTOS;
+    const part=[[g.nuevas,'nueva','nuevas','×'+VV.nueva],[g.recuperadas,'recuperada','recuperadas','×'+VV.recuperar],[g.repaso,'de repaso','de repaso','×'+VV.repaso],[g.repetidas,'ya acertada hoy','ya acertadas hoy',g.v3?'×1':'sin puntos']].filter(x=>x[0]);
     if(part.length)h+='<p class="desglose">'+part.map(x=>'<span><b>'+x[0]+'</b> '+(x[0]===1?x[1]:x[2])+' <small>'+x[3]+'</small></span>').join('')+'</p>';
     if(g.fac>1&&g.puntos>0)h+='<p class="logro-l">'+ic('bolt')+'<span>Ronda larga: tus aciertos valen <b>×'+g.fac.toLocaleString('es-ES',{maximumFractionDigits:2})+'</b>.</span></p>';
-    if(g.reducido)h+='<p class="logro-l">'+ic('info')+'<span>Hoy ya llevas muchos puntos: a partir de '+PUNTOS.tramo1+' las respuestas valen la mitad, y a partir de '+PUNTOS.tramo2+', la cuarta parte. Los retos y los problemas cuentan enteros.</span></p>';
-    else if(g.repetidas>=3)h+='<p class="logro-l">'+ic('info')+'<span>Las que ya has acertado hoy no dan puntos. Prueba otro tema o vuelve a este otro día.</span></p>';
+    if(g.reducido)h+='<p class="logro-l">'+ic('info')+'<span>Hoy ya llevas muchos puntos y las respuestas valen menos. Los retos y los problemas cuentan enteros.</span></p>';
+    else if(g.repetidas>=3)h+='<p class="logro-l">'+ic('info')+'<span>Las que ya has acertado hoy casi no dan puntos. Prueba otro tema o vuelve a este otro día.</span></p>';
     else if(L.asigHoy===1&&L.respHoy>=60)h+='<p class="logro-l">'+ic('sparkle')+'<span>Si hoy repasas otra asignatura, ganas +'+PUNTOS.variedad+' puntos extra.</span></p>';
   }
   if(nv.diaHecho)h+='<p class="logro-l">'+ic('check')+'<span><b>¡Día completado!</b> Racha de '+plural(L.racha,'día','días')+'.</span></p>';
@@ -1135,8 +1187,9 @@ function logrosDe(nv,L){
   if(nv.diaHecho)out.push({g:'dias',ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
   if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({g:'racha',ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
   if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({g:'combo',ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
-  if(nv.temas>0)out.push({g:'crea',ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
-  else if(nv.preguntas>0)out.push({g:'crea',ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).pregunta+' puntos por cada una (hasta '+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).topeTemaDia+' por tema y día).'});
+  if(nv.subida)out.push({g:'crea',ic:'upload',t:'Test subido',x:plural(nv.subida.total,'pregunta nueva','preguntas nuevas')+(nv.subida.orden>1?' · es tu '+nv.subida.orden+'.º test de hoy':'')+'. +'+nv.subida.pts+' puntos.'});
+  else if(nv.temas>0)out.push({g:'crea',ic:'upload',t:nv.temas===1?'¡Tema nuevo!':'¡'+nv.temas+' temas nuevos!',x:'Has subido preguntas de '+(nv.temas===1?'un tema que no estaba':'temas que no estaban')+'. +'+SUBIR.tema+' puntos por tema.'});
+  else if(nv.preguntas>0&&!nv.subida)out.push({g:'crea',ic:'plus',t:plural(nv.preguntas,'pregunta nueva','preguntas nuevas'),x:'+'+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).pregunta+' puntos por cada una (hasta '+(reglasNuevas(diaClave(new Date()))?SUBIR2:SUBIR).topeTemaDia+' por tema y día).'});
   (nv.retos||[]).forEach(p=>out.push({g:'p-'+p.id,ic:p.ic,t:'¡Reto de '+p.nombre.toLowerCase()+' del día!',x:'Has acertado '+p.reto+' de '+p.nombre.toLowerCase()+' hoy. +'+RETO.pts+' puntos.'}));
   if(nv.estrenos>0)out.push({g:'crea',ic:'check',t:'¡Tema estrenado!',x:'Has repasado un tema que subiste tú. +'+SUBIR.estreno+' puntos.'});
   nv.medallas.forEach(m=>out.push({g:m.grupo,ic:m.ic,t:'Medalla: '+m.nombre,x:hazaña(m,L)+' +'+m.pts+' puntos.',med:true}));
@@ -1205,6 +1258,8 @@ function cuandoLlega(falta,L){
   const d=Math.ceil(falta/L.ritmo);
   return d>400?'':' · '+(d<=1?'mañana':d<=60?'unos '+d+' días':'unos '+Math.round(d/30)+' meses')+' a tu ritmo';
 }
+/* el premio más caro es el «gran premio de temporada»: pide además V3.granDias días completados */
+function granPremio(){const P=premios();return P.length?P[P.length-1]:null}
 function premiosHTML(L){
   const C=Datos.canjesVigentes().slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   const pend=C.filter(c=>c.estado==='pendiente'),hechos=C.filter(c=>c.estado==='entregado');
@@ -1213,14 +1268,19 @@ function premiosHTML(L){
   if(pend.length)h+='<p class="res-t">Esperando a papá o mamá</p><div>'+pend.map(c=>
     '<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.fecha)+' · '+(+c.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
     '<button class="link" data-a="confirmarCanje" data-id="'+esc(c.id)+'">Confirmar</button></div>').join('')+'</div>';
+  const gran=granPremio();
   h+='<p class="res-t">Elige un premio</p><div>'+premios().map(p=>{
-    const falta=p.puntos-L.saldo,cc='';
+    const esGran=gran&&p.id===gran.id,cerrado=esGran&&L.diasHechos<V3.granDias,cc=esGran?' gran':'';
+    const candado=esGran?'<small class="gran-d">'+(cerrado?'Gran premio de temporada: se desbloquea con '+V3.granDias+' días completados · llevas '+L.diasHechos:'Gran premio de temporada · desbloqueado')+'</small>':'';
+    const falta=p.puntos-L.saldo;
+    if(falta<=0&&cerrado)return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+ic('check')+'</span></div>'+
+      '<small>Ya tienes los puntos ('+(+p.puntos).toLocaleString('es-ES')+')</small>'+candado+'</div></div>';
     if(falta<=0)return '<div class="ses premio'+cc+'"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
-      '<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button></div>';
+      '<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button>'+(esGran?candado:'')+'</div>';
     const pc=Math.max(0,Math.min(99,Math.floor(L.saldo/p.puntos*100)));
     return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+pc+'%</span></div>'+
       '<div class="linea" aria-hidden="true"><i style="width:'+pc+'%"></i></div>'+
-      '<small>'+Math.max(0,L.saldo).toLocaleString('es-ES')+' de '+(+p.puntos).toLocaleString('es-ES')+' · te faltan '+falta.toLocaleString('es-ES')+cuandoLlega(falta,L)+'</small></div></div>';
+      '<small>'+Math.max(0,L.saldo).toLocaleString('es-ES')+' de '+(+p.puntos).toLocaleString('es-ES')+' · te faltan '+falta.toLocaleString('es-ES')+cuandoLlega(falta,L)+'</small>'+candado+'</div></div>';
   }).join('')+'</div>';
   if(hechos.length)h+='<p class="res-t">Ya conseguidos</p><div>'+hechos.slice(0,8).map(c=>'<div class="ses"><span>'+esc(c.nombre)+'<small>'+fechaHora(c.resuelto||c.fecha)+'</small></span><span>'+ic('check')+'</span></div>').join('')+'</div>';
   return h+'</section>';
@@ -1236,17 +1296,15 @@ function renderLogros(){
       (L.hoyHecho?'':'<button class="btn" data-a="inicio" style="margin-top:16px">Repasar '+ic('arrow')+'</button>')+'</div></section>'+
     calendario(L)+medallasHTML(L)+premiosHTML(L)+
     '<details class="ver-texto"><summary>Cómo se ganan puntos</summary><ul class="reglas">'+
-      '<li><b>'+PUNTOS.nueva+'</b> por cada pregunta que aciertas por primera vez</li>'+
-      '<li><b>'+PUNTOS.recuperar+'</b> si aciertas otro día una que habías fallado</li>'+
-      '<li><b>'+PUNTOS.repaso+'</b> si ya la habías acertado otro día (repaso)</li>'+
-      '<li><b>0</b> si ya la has acertado hoy: puedes repetir lo que quieras, pero los puntos son por aprender</li>'+
+      '<li><b>'+V3.nueva+'</b> por cada pregunta que aciertas por primera vez</li>'+
+      '<li><b>'+V3.recuperar+'</b> si aciertas otro día una que habías fallado</li>'+
+      '<li><b>'+V3.repaso+'</b> si ya la habías acertado otro día (repaso)</li>'+
+      '<li><b>1</b> si ya la has acertado hoy: puedes repetir lo que quieras, pero los puntos son por aprender</li>'+
       '<li>Las rondas largas valen más: <b>×1,17</b> con 10 preguntas y <b>×1,5</b> con 20</li>'+
-      '<li>Por responder cuentan enteros los primeros <b>'+PUNTOS.tramo1+'</b> puntos del día; de '+PUNTOS.tramo1+' a '+PUNTOS.tramo2+', la mitad, y después, la cuarta parte (los problemas, siempre enteros)</li>'+
+      '<li>Por responder cuentan enteros los primeros <b>'+V3.tramo1+'</b> puntos del día; de '+V3.tramo1+' a '+V3.tramo2+', la mitad, y después, mucho menos. En la semana, a partir de '+V3.semana+', la mitad (los problemas, siempre enteros)</li>'+
       '<li><b>+'+PUNTOS.variedad+'</b> por cada asignatura más que repases el mismo día (hasta +'+PUNTOS.variedad*PUNTOS.variedadMax+')</li>'+
-      '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li>'+
-      '<li><b>'+SUBIR2.pregunta+'</b> por cada pregunta nueva que subas (hasta '+SUBIR2.topeTemaDia+' por tema y día)</li>'+
-      '<li><b>+'+SUBIR.tema+'</b> por cada tema nuevo con al menos '+SUBIR.minTema+' preguntas</li>'+
-      '<li>Máximo <b>'+SUBIR.topeDia+'</b> puntos al día por subir preguntas</li>'+
+      '<li><b>'+V3.dia+'</b> por cada día completado</li>'+
+      '<li>Por subir un test: el 1.º del día <b>'+V3.subir[0]+'</b>, el 2.º <b>'+V3.subir[1]+'</b> y los demás <b>'+V3.subir[2]+'</b>. Valor completo con '+V3.subirLleno+' preguntas nuevas o más; si trae menos, la parte proporcional</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
       (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
       '<li>Cada medalla da puntos extra</li></ul></details>';
@@ -1272,6 +1330,7 @@ async function hacerReinicio(el){
   }catch(e){toast(/pin/i.test(e.message)?'El PIN no es correcto.':/desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido: '+e.message+'.')}
 }
 async function canjear(el){
+  {const g=granPremio(),L0=calcularLogros();if(g&&String(g.id)===el.dataset.id&&L0.diasHechos<V3.granDias){toast('Se desbloquea con '+V3.granDias+' días completados. Llevas '+L0.diasHechos+'.');return}}
   const p=premios().find(x=>String(x.id)===el.dataset.id),L=calcularLogros();
   if(!p)return;
   if(p.puntos>L.saldo){toast('Te faltan '+(p.puntos-L.saldo)+' puntos.');return}
