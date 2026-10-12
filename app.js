@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='16';
+const VERSION='17';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -863,9 +863,16 @@ const META=Object.assign({preguntas:15,aciertos:11},CONFIG.meta||{});
    (cuenta para el día y la racha), solo que da menos puntos.
      · pregunta acertada por primera vez: 10       · una que habías fallado y ahora aciertas: 15
      · ya acertada otro día (repaso): 4            · ya acertada hoy: 0
-     · máximo PUNTOS.topeDia puntos al día por responder (después se puede seguir practicando)
+     · rondas largas valen más: ×1 con 5 preguntas, ×1,17 con 10, ×1,5 con 20 o más
+     · sin tope, pero con rendimiento decreciente: lo que se gana por responder cuenta entero hasta 200 al día,
+       a la mitad de 200 a 400 y a la cuarta parte por encima (los problemas cuentan siempre enteros)
+     · los retos diarios, el día completado y las medallas van aparte: siempre cuentan enteros
      · +25 por cada asignatura más que la primera repasada ese día (con 5 respuestas o más), hasta +50 */
-const PUNTOS={acierto:10,recuperada:5,dia:50,nueva:10,recuperar:15,repaso:4,repetida:0,topeDia:300,variedad:25,variedadMin:5,variedadMax:2};
+const PUNTOS={acierto:10,recuperada:5,dia:50,nueva:10,recuperar:15,repaso:4,repetida:0,tramo1:200,tramo2:400,variedad:25,variedadMin:5,variedadMax:2};
+/* ×1 con 5 preguntas o menos, sube poco a poco hasta ×1,5 con 20 o más */
+const factorRonda=n=>n<=5?1:1+(Math.min(n,20)-5)/30;
+/* rendimiento decreciente diario de lo que se gana respondiendo */
+const curvaDia=x=>Math.min(x,PUNTOS.tramo1)+Math.max(0,Math.min(x,PUNTOS.tramo2)-PUNTOS.tramo1)*.5+Math.max(0,x-PUNTOS.tramo2)*.25;
 const SUBIR={pregunta:5,topeTemaDia:30,tema:100,minTema:10,estreno:50,estrenoN:10,estrenoOk:7,topeDia:150};
 const SUBIR2={pregunta:3,topeTemaDia:20};
 const DESDE_NUEVOS=CONFIG.puntosNuevosDesde==null?'2026-10-10':String(CONFIG.puntosNuevosDesde);
@@ -915,8 +922,8 @@ const PREMIOS_BASE=[
   ['tareas','Un día sin tareas de casa',800],['euros5','5 €',1000],['euros10','10 €',1800],
   ['cena','Merienda o cena fuera con una amiga',2000],['pijamas','Fiesta de pijamas en casa',2500],['euros20','20 €',3500],
   ['tarjeta','Tarjeta regalo de 25 € de tu tienda favorita',4500],['cine','Cine con amigas: entradas y palomitas',5000],
-  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',10000],['auriculares','Auriculares inalámbricos',12000],
-  ['parque','Día en un parque de atracciones o acuático',15000],['gran','Gran premio: lo que tú elijas hasta 150 €',25000]
+  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',13000],['auriculares','Auriculares inalámbricos',16000],
+  ['parque','Día en un parque de atracciones o acuático',20000],['gran','Gran premio: lo que tú elijas hasta 150 €',35000]
 ].map(([id,nombre,puntos])=>({id,nombre,puntos}));
 
 const diaClave=d=>{d=d instanceof Date?d:new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -933,9 +940,14 @@ function calcularLogros(R,ahora){
   R.forEach(r=>{
     const k=diaClave(r.fecha),d=L.dias[k]||(L.dias[k]={n:0,ok:0,hecho:false}),nuevas=reglasNuevas(k);
     const det=(r.detalle&&r.detalle.length)?r.detalle:null;
-    const g=L.desglose[r.id||r.fecha]={nuevas:0,recuperadas:0,repaso:0,repetidas:0,tope:false,puntos:0,reglas:nuevas};
-    const dar=n=>{
-      if(nuevas){const ya=respDia[k]||0,m=Math.max(0,Math.min(n,PUNTOS.topeDia-ya));if(m<n)g.tope=true;respDia[k]=ya+m;n=m}
+    const fac=factorRonda(det?det.length:0);
+    const g=L.desglose[r.id||r.fecha]={nuevas:0,recuperadas:0,repaso:0,repetidas:0,reducido:false,fac,puntos:0,reglas:nuevas};
+    /* libre: no entra en el rendimiento decreciente (problemas) */
+    const dar=(n,libre)=>{
+      if(nuevas){
+        n*=fac;
+        if(!libre){const ya=respDia[k]||0,v=curvaDia(ya+n)-curvaDia(ya);if(v<n-1e-9)g.reducido=true;respDia[k]=ya+n;n=v}
+      }
       L.puntosRespuestas+=n;sumar(k,n);g.puntos+=n;
     };
     if(r.avisos)L.combo=0;   /* un aviso no corta los fallos… pero tampoco deja seguir la serie de aciertos */
@@ -953,11 +965,12 @@ function calcularLogros(R,ahora){
         const pr=practicaDe(porId.get(x.id));
         if(pr&&!repetidaHoy){const P=L.prac[pr.id];P.ok++;P.dia[k]=(P.dia[k]||0)+1;
           if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
+        const libre=!!(pr&&pr.id==='problemas');
         if(!nuevas)dar(PUNTOS.acierto+(recuperada?PUNTOS.recuperada:0));
-        else if(recuperada){g.recuperadas++;dar(PUNTOS.recuperar)}
-        else if(!okDia.has(x.id)){g.nuevas++;dar(PUNTOS.nueva)}
-        else if(okDia.get(x.id)===k){g.repetidas++;dar(PUNTOS.repetida)}
-        else{g.repaso++;dar(PUNTOS.repaso)}
+        else if(recuperada){g.recuperadas++;dar(PUNTOS.recuperar,libre)}
+        else if(!okDia.has(x.id)){g.nuevas++;dar(PUNTOS.nueva,libre)}
+        else if(okDia.get(x.id)===k){g.repetidas++;dar(PUNTOS.repetida,libre)}
+        else{g.repaso++;dar(PUNTOS.repaso,libre)}
         if(x.id)okDia.set(x.id,k);
       }else{L.combo=0;if(x.id&&ult.get(x.id)!==false)falloDia.set(x.id,k)}
       if(L.combo>L.mejorCombo)L.mejorCombo=L.combo;
@@ -994,6 +1007,7 @@ function calcularLogros(R,ahora){
   L.respHoy=respDia[L.hoy]||0;
   L.puntosRetos=L.puntosRetos||0;
   L.retoHoy={};PRACTICAS.forEach(p=>{L.retoHoy[p.id]=L.prac[p.id].dia[L.hoy]||0});
+  L.puntosRespuestas=Math.round(L.puntosRespuestas);
   L.puntos=L.puntosRetos+L.puntosRespuestas+L.puntosVariedad+L.diasHechos*PUNTOS.dia+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.veces*x.m.pts,0);
   /* ritmo: puntos al día de media en las dos últimas semanas (sin contar medallas) */
   let suma=0;for(let i=0;i<14;i++)suma+=L.porDia[sumarDias(L.hoy,-i)]||0;
@@ -1103,7 +1117,8 @@ function celebracion(nv,L){
   if(g&&g.reglas){
     const part=[[g.nuevas,'nueva','nuevas','×'+PUNTOS.nueva],[g.recuperadas,'recuperada','recuperadas','×'+PUNTOS.recuperar],[g.repaso,'de repaso','de repaso','×'+PUNTOS.repaso],[g.repetidas,'ya acertada hoy','ya acertadas hoy','sin puntos']].filter(x=>x[0]);
     if(part.length)h+='<p class="desglose">'+part.map(x=>'<span><b>'+x[0]+'</b> '+(x[0]===1?x[1]:x[2])+' <small>'+x[3]+'</small></span>').join('')+'</p>';
-    if(g.tope)h+='<p class="logro-l">'+ic('info')+'<span>Hoy ya tienes los '+PUNTOS.topeDia+' puntos máximos por responder. Puedes seguir practicando: cuenta para tu día y tu racha.</span></p>';
+    if(g.fac>1&&g.puntos>0)h+='<p class="logro-l">'+ic('bolt')+'<span>Ronda larga: tus aciertos valen <b>×'+g.fac.toLocaleString('es-ES',{maximumFractionDigits:2})+'</b>.</span></p>';
+    if(g.reducido)h+='<p class="logro-l">'+ic('info')+'<span>Hoy ya llevas muchos puntos: a partir de '+PUNTOS.tramo1+' las respuestas valen la mitad, y a partir de '+PUNTOS.tramo2+', la cuarta parte. Los retos y los problemas cuentan enteros.</span></p>';
     else if(g.repetidas>=3)h+='<p class="logro-l">'+ic('info')+'<span>Las que ya has acertado hoy no dan puntos. Prueba otro tema o vuelve a este otro día.</span></p>';
     else if(L.asigHoy===1&&L.respHoy>=60)h+='<p class="logro-l">'+ic('sparkle')+'<span>Si hoy repasas otra asignatura, ganas +'+PUNTOS.variedad+' puntos extra.</span></p>';
   }
@@ -1225,7 +1240,8 @@ function renderLogros(){
       '<li><b>'+PUNTOS.recuperar+'</b> si aciertas otro día una que habías fallado</li>'+
       '<li><b>'+PUNTOS.repaso+'</b> si ya la habías acertado otro día (repaso)</li>'+
       '<li><b>0</b> si ya la has acertado hoy: puedes repetir lo que quieras, pero los puntos son por aprender</li>'+
-      '<li>Máximo <b>'+PUNTOS.topeDia+'</b> puntos al día por responder</li>'+
+      '<li>Las rondas largas valen más: <b>×1,17</b> con 10 preguntas y <b>×1,5</b> con 20</li>'+
+      '<li>Por responder cuentan enteros los primeros <b>'+PUNTOS.tramo1+'</b> puntos del día; de '+PUNTOS.tramo1+' a '+PUNTOS.tramo2+', la mitad, y después, la cuarta parte (los problemas, siempre enteros)</li>'+
       '<li><b>+'+PUNTOS.variedad+'</b> por cada asignatura más que repases el mismo día (hasta +'+PUNTOS.variedad*PUNTOS.variedadMax+')</li>'+
       '<li><b>'+PUNTOS.dia+'</b> por cada día completado</li>'+
       '<li><b>'+SUBIR2.pregunta+'</b> por cada pregunta nueva que subas (hasta '+SUBIR2.topeTemaDia+' por tema y día)</li>'+

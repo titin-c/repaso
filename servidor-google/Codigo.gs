@@ -17,8 +17,8 @@ var PREMIOS_INICIALES = [
   ['tareas','Un día sin tareas de casa',800],['euros5','5 €',1000],['euros10','10 €',1800],
   ['cena','Merienda o cena fuera con una amiga',2000],['pijamas','Fiesta de pijamas en casa',2500],['euros20','20 €',3500],
   ['tarjeta','Tarjeta regalo de 25 € de tu tienda favorita',4500],['cine','Cine con amigas: entradas y palomitas',5000],
-  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',10000],['auriculares','Auriculares inalámbricos',12000],
-  ['parque','Día en un parque de atracciones o acuático',15000],['gran','Gran premio: lo que tú elijas hasta 150 €',25000]
+  ['euros50','50 €',8000],['ropa','Ropa o zapatillas que elijas (hasta 60 €)',13000],['auriculares','Auriculares inalámbricos',16000],
+  ['parque','Día en un parque de atracciones o acuático',20000],['gran','Gran premio: lo que tú elijas hasta 150 €',35000]
 ];
 // La primera lista (más infantil). Si la hoja sigue exactamente con ella, se cambia sola por la nueva.
 var PREMIOS_V1 = 'postre,peli,pantalla,tarea,plan,merienda,amiga,libro,cine,capricho,actividad';
