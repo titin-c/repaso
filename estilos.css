@@ -408,3 +408,9 @@ a.btn{text-decoration:none}
 .ses.premio.gran .premio-c .r span:first-child{font-weight:500}
 .gran-d{display:block;margin-top:6px;font-size:12px;color:var(--ink)}
 .ses.premio.gran:not(.lejos){flex-wrap:wrap}
+
+.aviso-f{display:grid;gap:8px;margin-top:12px}
+.aviso-f .lbl-f small{text-transform:none;letter-spacing:0;color:var(--muted)}
+.aviso-f .btn.mini{justify-self:start}
+.aviso-que{font-size:14px;margin:0 0 8px}
+.aviso-com{font-size:15px;margin:0 0 8px;padding-left:12px;border-left:2px solid var(--ink)}

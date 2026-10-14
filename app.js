@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='18';
+const VERSION='19';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -755,11 +755,25 @@ function avisarError(){
   if(!(s.resp[s.i]||{}).ok&&avisosHoy()>=AVISOS_DIA){const c=$('#avisoErr');if(c)c.innerHTML='<p class="fb-nota aviso-ok">'+ic('info')+'<span>Hoy ya has avisado de '+AVISOS_DIA+' preguntas. Si crees que esta también está mal, díselo a papá o mamá.</span></p>';return}
   const it=s.preguntas[s.i],q=it.q,r=s.resp[s.i]||{};
   const tuya=r.escrita!=null?r.escrita:(r.elegida!=null?q.opciones[r.elegida]:'');
+  const caja=$('#avisoErr');
+  /* primero le pide (opcional) que cuente qué está mal; el aviso se envía al pulsar «Enviar aviso» */
+  if(caja&&!caja.querySelector('#avisoTxt')){
+    caja.innerHTML='<div class="aviso-f"><label class="lbl-f" for="avisoTxt">'+(r.ok?'¿Qué está mal en la pregunta o en la explicación?':'¿Por qué crees que tu respuesta está bien?')+' <small>(opcional)</small></label>'+
+      '<textarea class="in short" id="avisoTxt" maxlength="300" placeholder="Por ejemplo: la explicación dice lo contrario"></textarea>'+
+      '<button class="btn sec mini" data-a="enviarAviso">'+ic('alert')+'Enviar aviso</button></div>';
+    const t=$('#avisoTxt');if(t)t.focus();return;
+  }
+}
+function enviarAviso(){
+  const s=E.sesion;if(!s)return;
+  const q=s.preguntas[s.i].q,r=s.resp[s.i]||{};
+  const tuya=r.escrita!=null?r.escrita:(r.elegida!=null?q.opciones[r.elegida]:'');
+  const comentario=norm(($('#avisoTxt')||{}).value).slice(0,300);
   r.aviso=true;
   const caja=$('#avisoErr');
   if(caja)caja.innerHTML='<p class="fb-nota aviso-ok">'+ic('check')+'<span>Gracias. Papá o mamá revisarán esta pregunta'+(r.ok?'':' y no cuenta como fallo')+'.</span></p>';
   servidorPost({accion:'aviso',datos:{preguntaId:q.id,enunciado:q.enunciado,tuya:String(tuya),correcta:correctaDe(q),
-    curso:q.curso,asignatura:q.asignatura,tema:q.tema,acerto:!!r.ok}})
+    curso:q.curso,asignatura:q.asignatura,tema:q.tema,acerto:!!r.ok,comentario}})
     .then(()=>Datos.avisos.push({id:'local',preguntaId:q.id})).catch(e=>{if(/desconocida/.test(e.message))toast('Falta actualizar el código del servidor para enviar avisos.')});
 }
 
@@ -769,13 +783,16 @@ function renderAvisos(){
   const L=(Datos.avisos||[]).filter(a=>a.id!=='local');
   let h='<button class="link" data-a="preguntas">'+ic('back')+'Preguntas</button>'+
     '<p class="eyebrow" style="margin-top:16px">Avisos</p><h1>Preguntas que pueden estar mal</h1>'+
-    '<p class="sub">Pepa cree que su respuesta estaba bien o ha visto un error. Corrige la pregunta si hace falta y márcala como revisada.</p>';
+    '<p class="sub">Pepa ha avisado de que algo puede estar mal. Si tiene razón, pulsa <b>Corregir</b>: se abre esa pregunta en el editor, cambias lo que esté mal (la respuesta correcta, el texto o la explicación) y pulsas <b>Guardar</b>. Si la pregunta está bien, pulsa <b>Revisado</b>.</p>';
   if(!L.length)h+='<p class="count">No hay avisos pendientes.</p>';
   else h+='<div>'+L.map(a=>{
     const q=preguntaPorId(a.preguntaId);
     return '<div class="aviso-p"><p class="eyebrow">'+esc([a.asignatura,a.tema].filter(Boolean).join(' · '))+' · '+fechaHora(a.fecha)+'</p>'+
       '<p class="aviso-e">'+esc(a.enunciado)+'</p>'+
-      '<dl class="fb-cmp"><div><dt>Su respuesta</dt><dd>'+esc(a.tuya||'—')+(a.acerto?' <small>(la dio por buena)</small>':'')+'</dd></div><div><dt>La pregunta dice</dt><dd><b>'+esc(a.correcta)+'</b></dd></div></dl>'+
+      '<p class="aviso-que">'+(a.acerto?'<b>La acertó</b>, pero cree que algo de la pregunta o de la explicación está mal.':'<b>La app se la dio por mala</b>, pero ella cree que su respuesta está bien.')+'</p>'+
+      (a.comentario?'<p class="aviso-com">«'+esc(a.comentario)+'»</p>':'')+
+      '<dl class="fb-cmp"><div><dt>Respondió</dt><dd>'+esc(a.tuya||'—')+'</dd></div><div><dt>Correcta según la app</dt><dd><b>'+esc(a.correcta)+'</b></dd></div>'+
+      (q&&q.explicacion?'<div><dt>Explicación</dt><dd>'+esc(q.explicacion)+'</dd></div>':'')+'</dl>'+
       '<div class="tool">'+(q?'<button class="btn sec" data-a="corregirAviso" data-id="'+esc(a.id)+'">'+ic('edit')+'Corregir</button>':'')+
       '<button class="btn sec" data-a="resolverAviso" data-id="'+esc(a.id)+'">'+ic('check')+'Revisado</button></div></div>';
   }).join('')+'</div>';
@@ -2045,7 +2062,7 @@ const A={
   mesAnt:()=>{E.mes--;renderLogros();const b=$('[data-a=mesAnt]');if(b)b.focus()},
   mesSig:()=>{if(E.mes<0)E.mes++;renderLogros();const b=$('[data-a='+(E.mes<0?'mesSig':'mesAnt')+']');if(b)b.focus()},
   canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,
-  avisarError,corregirAviso,resolverAviso,avisos:()=>ir('avisos'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
+  avisarError,enviarAviso,corregirAviso,resolverAviso,avisos:()=>ir('avisos'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
   editor:()=>ir('editor'),
   editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},
   salir:()=>{if(confirm('¿Salir de la ronda? Se perderá lo que llevas.'))ir('inicio')},
