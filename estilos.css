@@ -414,3 +414,12 @@ a.btn{text-decoration:none}
 .aviso-f .btn.mini{justify-self:start}
 .aviso-que{font-size:14px;margin:0 0 8px}
 .aviso-com{font-size:15px;margin:0 0 8px;padding-left:12px;border-left:2px solid var(--ink)}
+
+/* Rescate de racha */
+.rescate{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--ink);background:var(--t-naranja0,#FFFCF8);padding:16px;margin:0 0 12px}
+.rescate>.ic{color:var(--m-naranja);flex:none}
+.rescate b{display:block;font-weight:700;margin-bottom:2px}
+.rescate span{display:block;font-size:14px;color:var(--muted);margin-bottom:10px}
+.rescate .btn.mini{display:inline-flex}
+.cal-d.salvado{border:1px dashed var(--ink);color:var(--ink)}
+.cal-m.salvado{border:1px dashed var(--ink)}

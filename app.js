@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='19';
+const VERSION='20';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -926,6 +926,7 @@ const PRACTICAS=(CONFIG.practicas||[
 ]).map(p=>Object.assign({reto:5},p,{claves:(p.palabras||[]).map(w=>clave(w))}));
 /* reto diario de cada práctica: N aciertos (que den puntos) en el día → +20. Ortografía 20, problemas 5 */
 const RETO={pts:20};
+const RESCATE={n:4,cada:7,minRacha:2};   /* salvar la racha: 4 aciertos de problemas al día siguiente, una vez por semana */
 /* Solo cuentan las preguntas que pone papá o mamá (subidas «sin puntos»): así no se puede rellenar
    la práctica con preguntas fáciles inventadas para sacar el reto. */
 function practicaDe(q){
@@ -1042,13 +1043,29 @@ function calcularLogros(R,ahora){
   L.diasHechosAntes=hechos.filter(k=>!reglasV3(k)).length;
   /* días desde la primera ronda hasta la última */
   L.antiguedad=R.length?Math.round((new Date(diaClave(R[R.length-1].fecha)+'T12:00')-new Date(diaClave(R[0].fecha)+'T12:00'))/864e5):0;
-  /* mejor racha */
-  let run=0,prev=null;
-  hechos.forEach(k=>{run=(prev&&sumarDias(prev,1)===k)?run+1:1;if(run>L.mejorRacha)L.mejorRacha=run;prev=k});
-  /* racha actual: termina hoy o, si hoy aún no está hecho, ayer */
   const hecho=k=>!!(L.dias[k]&&L.dias[k].hecho);
-  let k=hecho(L.hoy)?L.hoy:sumarDias(L.hoy,-1);
-  while(hecho(k)){L.racha++;k=sumarDias(k,-1)}
+  /* Rescate de racha: si un día no se completa, al día siguiente se puede salvar haciendo RESCATE.n aciertos
+     de problemas (que den puntos). El día salvado no suma a la racha ni a los días hechos: solo evita que se corte.
+     Como mucho un rescate cada RESCATE.cada días. */
+  L.salvados=new Set();let ultRescate=null;
+  const probDia=(L.prac.problemas||{dia:{}}).dia;
+  const vivo=k=>hecho(k)||L.salvados.has(k);
+  Object.keys(L.dias).sort().forEach(k=>{
+    const ayer=sumarDias(k,-1),anteayer=sumarDias(k,-2);
+    if((probDia[k]||0)>=RESCATE.n&&!vivo(ayer)&&vivo(anteayer)&&(!ultRescate||k>=sumarDias(ultRescate,RESCATE.cada))){L.salvados.add(ayer);ultRescate=k}
+  });
+  const rachaHasta=k=>{let n=0;while(vivo(k)){if(hecho(k))n++;k=sumarDias(k,-1)}return n};
+  /* mejor racha (los días salvados unen, pero no suman) */
+  let run=0,prev=null;
+  Object.keys(L.dias).concat([...L.salvados]).filter((k,i,a)=>a.indexOf(k)===i&&vivo(k)).sort().forEach(k=>{
+    run=(prev&&sumarDias(prev,1)===k)?run+(hecho(k)?1:0):(hecho(k)?1:0);if(run>L.mejorRacha)L.mejorRacha=run;prev=k});
+  /* racha actual: termina hoy o, si hoy aún no está hecho, ayer */
+  L.racha=rachaHasta(vivo(L.hoy)?L.hoy:sumarDias(L.hoy,-1));
+  /* ¿se puede salvar hoy la racha de ayer? */
+  {const ay=sumarDias(L.hoy,-1),aa=sumarDias(L.hoy,-2);
+   if(!vivo(ay)&&vivo(aa)&&(!ultRescate||L.hoy>=sumarDias(ultRescate,RESCATE.cada))){
+     const n=rachaHasta(aa);if(n>=RESCATE.minRacha)L.rescate={racha:n,llevo:probDia[L.hoy]||0,faltan:Math.max(0,RESCATE.n-(probDia[L.hoy]||0))};
+   }}
   const h=L.dias[L.hoy]||{n:0,ok:0,hecho:false};
   L.hoyN=h.n;L.hoyOk=h.ok;L.hoyHecho=h.hecho;
   L.faltanN=Math.max(0,META.preguntas-h.n);L.faltanOk=Math.max(0,META.aciertos-h.ok);
@@ -1128,6 +1145,7 @@ function novedades(antes,despues){
     puntos:despues.puntos-antes.puntos,
     diaHecho:!antes.hoyHecho&&despues.hoyHecho,
     racha:despues.racha>antes.racha?despues.racha:0,
+    salvada:despues.salvados.size>antes.salvados.size?despues.racha:0,
     record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
     combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
     temas:despues.temasNuevos-antes.temasNuevos,
@@ -1171,7 +1189,11 @@ function bannerHoy(){
   const L=calcularLogros(),tarde=new Date().getHours()>=18;
   const aviso=L.enRiesgo&&tarde
     ?'<p class="hoy-aviso">'+ic('alert')+'<span>Tu racha de '+plural(L.racha,'día','días')+' se pierde a medianoche. '+quePasa(L)+'.</span></p>':'';
-  return '<button class="hoy'+(aviso?' riesgo':'')+'" data-a="logros" aria-label="Hoy: '+esc(quePasa(L))+'. Ver mis logros">'+
+  const hayProb=preguntasDePractica('problemas').length>0;
+  const resc=L.rescate?'<div class="rescate">'+ic('flame')+'<div><b>¡Recupera tu racha de '+plural(L.rescate.racha,'día','días')+'!</b>'+
+    '<span>Ayer no completaste el día. '+(hayProb?'Acierta '+RESCATE.n+' problemas hoy y no se pierde'+(L.rescate.llevo?' (llevas '+L.rescate.llevo+')':'')+'.':'Pide a papá o mamá que suban problemas de matemáticas para poder salvarla.')+'</span>'+
+    (hayProb?'<button class="btn mini" data-a="practica" data-p="problemas">Hacer problemas '+ic('arrow')+'</button>':'')+'</div></div>':'';
+  return resc+'<button class="hoy'+(aviso?' riesgo':'')+'" data-a="logros" aria-label="Hoy: '+esc(quePasa(L))+'. Ver mis logros">'+
     '<span class="hoy-c"><span class="hoy-t">'+ic(L.hoyHecho?'check':'calendar')+(L.hoyHecho?'Día completado':'Hoy')+'</span>'+
     '<span class="hoy-k">'+ic('flame')+L.racha+'<span class="sep"></span>'+ic('medal')+L.saldo.toLocaleString('es-ES')+'</span></span>'+
     progresoHoy(L)+aviso+'</button>';
@@ -1201,6 +1223,7 @@ function celebracion(nv,L){
 const ANIMO=['¡Sigue así!','Cada día cuenta. ¡Mañana más!','Lo estás haciendo genial.','La constancia es tu superpoder.','¡A por la siguiente!'];
 function logrosDe(nv,L){
   const out=[];
+  if(nv.salvada)out.push({g:'racha',ic:'flame',t:'¡Racha salvada!',x:'Tu racha de '+plural(nv.salvada,'día','días')+' sigue viva. Ahora completa el día de hoy para que siga creciendo.'});
   if(nv.diaHecho)out.push({g:'dias',ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
   if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({g:'racha',ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
   if(nv.combo&&!nv.medallas.some(m=>m.grupo==='combo'))out.push({g:'combo',ic:'bolt',t:nv.combo+' aciertos seguidos',x:'Tu mejor serie sin fallar. ¡Qué concentración!'});
@@ -1244,16 +1267,16 @@ function calendario(L){
   for(let i=0;i<hueco;i++)celdas+='<span class="cal-d vacio"></span>';
   let hechosMes=0;
   for(let d=1;d<=dias;d++){
-    const k=diaClave(new Date(y,m,d)),x=L.dias[k],cls=x?(x.hecho?' hecho':' jugado'):'';
+    const k=diaClave(new Date(y,m,d)),x=L.dias[k],salv=L.salvados.has(k),cls=x&&x.hecho?' hecho':salv?' salvado':x?' jugado':'';
     if(x&&x.hecho)hechosMes++;
-    const est=x?(x.hecho?'día completado':'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)'):'';
+    const est=x&&x.hecho?'día completado':salv?'racha salvada con problemas':x?'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)':'';
     celdas+='<span class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" role="img" aria-label="'+d+' de '+MESES[m]+(k===L.hoy?', hoy':'')+(est?', '+est:'')+'">'+d+'</span>';
   }
   return '<section class="sec-block"><div class="head-row cal-h"><button class="icbtn" data-a="mesAnt" aria-label="Mes anterior">'+ic('back')+'</button>'+
     '<h2 aria-live="polite">'+MESES[m]+' '+y+'</h2>'+
     '<button class="icbtn" data-a="mesSig" aria-label="Mes siguiente"'+((E.mes||0)>=0?' disabled':'')+'>'+ic('arrow')+'</button></div>'+
     '<div class="cal" role="group" aria-label="Días de '+MESES[m]+'">'+['L','M','X','J','V','S','D'].map(x=>'<span class="cal-s" aria-hidden="true">'+x+'</span>').join('')+celdas+'</div>'+
-    '<p class="cal-ley"><span><i class="cal-m hecho"></i>Completado</span><span><i class="cal-m jugado"></i>Jugado</span><span>'+plural(hechosMes,'día este mes','días este mes')+'</span></p></section>';
+    '<p class="cal-ley"><span><i class="cal-m hecho"></i>Completado</span><span><i class="cal-m jugado"></i>Jugado</span>'+(L.salvados.size?'<span><i class="cal-m salvado"></i>Salvado</span>':'')+'<span>'+plural(hechosMes,'día este mes','días este mes')+'</span></p></section>';
 }
 function medallasHTML(L){
   const fila=x=>{
@@ -1324,6 +1347,7 @@ function renderLogros(){
       '<li>Por subir un test: el 1.º del día <b>'+V3.subir[0]+'</b>, el 2.º <b>'+V3.subir[1]+'</b> y los demás <b>'+V3.subir[2]+'</b>. Valor completo con '+V3.subirLleno+' preguntas nuevas o más; si trae menos, la parte proporcional</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
       (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
+      '<li>Si un día no lo completas, al día siguiente puedes <b>salvar la racha</b> acertando '+RESCATE.n+' problemas (una vez por semana)</li>'+
       '<li>Cada medalla da puntos extra</li></ul></details>';
 }
 /* Empezar de cero (con el PIN): todo lo anterior deja de contar, pero no se borra */
