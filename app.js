@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='21';
+const VERSION='22';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -935,13 +935,38 @@ function practicaDe(q){
   return PRACTICAS.find(p=>p.claves.some(k=>t.indexOf(k)>=0)||(p.id==='ortografia'&&q.exacta))||null;
 }
 const preguntasDePractica=id=>Datos.todas().filter(q=>{const p=practicaDe(q);return p&&p.id===id});
+/* ---------- Títulos: experiencia, racha y serie de aciertos ----------
+   La experiencia (XP) es todo lo que ha ganado (no baja al canjear premios).
+   Pasado el último rango, sigue subiendo por metales: Bronce, Plata, Oro, Platino, Diamante,
+   y luego Diamante II, III, IV… sin fin. */
+const METALES=['Bronce','Plata','Oro','Platino','Diamante'];
+const romano=n=>{const T=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];let r='';T.forEach(([v,l])=>{while(n>=v){r+=l;n-=v}});return r};
+const TITULOS={
+  xp:{base:[[0,'Aprendiz'],[300,'Estudiante'],[1000,'Exploradora'],[2500,'Erudita'],[5000,'Maestra'],[9000,'Sabia'],[15000,'Gran Sabia'],[25000,'Leyenda']],paso:10000},
+  racha:{base:[[0,'Sin racha'],[1,'Chispa'],[3,'Llama'],[7,'Hoguera'],[15,'Incendio'],[30,'Volcán'],[60,'Estrella'],[100,'Supernova']],paso:50},
+  combo:{base:[[0,'Sin serie'],[5,'Certera'],[10,'Precisa'],[25,'Francotiradora'],[50,'Imparable'],[100,'Infalible']],paso:50}
+};
+function titulo(tipo,v){
+  const T=TITULOS[tipo],B=T.base,last=B[B.length-1];
+  let i=B.length-1;while(i>0&&v<B[i][0])i--;
+  if(i<B.length-1)return {nombre:B[i][1],desde:B[i][0],hasta:B[i+1][0],siguiente:B[i+1][1],nivel:i};
+  const t=Math.floor((v-last[0])/T.paso);
+  const nom=k=>k<=0?last[1]:last[1]+' de '+METALES[Math.min(k-1,4)]+(k>5?' '+romano(k-4):'');
+  return {nombre:nom(t),desde:last[0]+t*T.paso,hasta:last[0]+(t+1)*T.paso,siguiente:nom(t+1),nivel:i+t};
+}
+function nivelHTML(L,peq){
+  const t=titulo('xp',L.puntos),pc=Math.min(100,Math.round((L.puntos-t.desde)/(t.hasta-t.desde)*100));
+  return '<div class="nivel'+(peq?' peq':'')+'"><div class="nivel-r"><span class="nivel-t">'+ic('star')+'<b>'+esc(t.nombre)+'</b></span><span class="nivel-xp">'+L.puntos.toLocaleString('es-ES')+' XP</span></div>'+
+    '<div class="linea" aria-hidden="true"><i style="width:'+pc+'%"></i></div>'+
+    '<small>'+(t.hasta-L.puntos).toLocaleString('es-ES')+' XP para «'+esc(t.siguiente)+'»</small></div>';
+}
 const MEDALLAS=[
   {id:'primera',grupo:'otras',ic:'medal',nombre:'Primera ronda',txt:'Termina tu primera ronda',pts:20,v:L=>L.rondas,meta:1},
-  ...[[3,50],[7,150],[15,300],[30,600],[60,1000],[100,2000]].map(([n,p])=>({id:'racha'+n,grupo:'racha',ic:'flame',nombre:n+' días seguidos',txt:'Haz '+n+' días seguidos',pts:p,v:L=>L.mejorRacha,meta:n})),
+  ...[[3,50],[7,150],[15,300],[30,600],[60,1000],[100,2000]].map(([n,p])=>({id:'racha'+n,grupo:'racha',ic:'flame',nombre:titulo('racha',n).nombre,sub:n+' días seguidos',txt:'Haz '+n+' días seguidos',pts:p,v:L=>L.mejorRacha,meta:n})),
   {id:'semana',grupo:'dias',ic:'calendar',nombre:'Semana',txt:'Cada 7 días hechos',pts:50,ptsAntes:100,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:7},
   {id:'quincena',grupo:'dias',ic:'calendar',nombre:'Quincena',txt:'Cada 15 días hechos',pts:100,ptsAntes:200,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:15},
   {id:'mes',grupo:'dias',ic:'calendar',nombre:'Mes',txt:'Cada 30 días hechos',pts:250,ptsAntes:500,antes:L=>L.diasHechosAntes,v:L=>L.diasHechos,cada:30},
-  ...[[10,50],[25,150],[50,300],[100,600]].map(([n,p])=>({id:'combo'+n,grupo:'combo',ic:'bolt',nombre:n+' aciertos seguidos',txt:'Acierta '+n+' seguidas sin fallar',pts:p,v:L=>L.mejorCombo,meta:n})),
+  ...[[10,50],[25,150],[50,300],[100,600]].map(([n,p])=>({id:'combo'+n,grupo:'combo',ic:'bolt',nombre:titulo('combo',n).nombre,sub:n+' aciertos seguidos',txt:'Acierta '+n+' seguidas sin fallar',pts:p,v:L=>L.mejorCombo,meta:n})),
   ...[[50,500],[100,1000],[200,2000],[365,4000]].map(([n,p])=>({id:'total'+n,grupo:'dias',ic:'calendar',nombre:n+' días hechos',txt:'Completa '+n+' días en total',pts:p,v:L=>L.diasHechos,meta:n})),
   ...[[30,'Un mes jugando',200],[182,'Medio año jugando',1000],[365,'Un año jugando',3000]].map(([n,t,p])=>({id:'tiempo'+n,grupo:'tiempo',ic:'star',nombre:t,txt:'Sigue jugando '+(n===30?'un mes':n===182?'medio año':'un año')+' desde tu primera ronda',pts:p,v:L=>L.antiguedad,meta:n})),
   {id:'subida1',grupo:'crea',ic:'upload',nombre:'Primer tema subido',txt:'Sube tu primer tema nuevo',pts:50,v:L=>L.temasNuevos,meta:1},
@@ -1147,6 +1172,8 @@ function novedades(antes,despues){
     puntos:despues.puntos-antes.puntos,
     diaHecho:!antes.hoyHecho&&despues.hoyHecho,
     racha:despues.racha>antes.racha?despues.racha:0,
+    nivel:titulo('xp',despues.puntos).nombre!==titulo('xp',antes.puntos).nombre?titulo('xp',despues.puntos):null,
+    tituloRacha:titulo('racha',despues.racha).nombre!==titulo('racha',antes.racha).nombre&&despues.racha>antes.racha?titulo('racha',despues.racha):null,
     salvada:despues.salvados.size>antes.salvados.size?despues.racha:0,
     record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
     combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
@@ -1198,7 +1225,7 @@ function bannerHoy(){
   return resc+'<button class="hoy'+(aviso?' riesgo':'')+'" data-a="logros" aria-label="Hoy: '+esc(quePasa(L))+'. Ver mis logros">'+
     '<span class="hoy-c"><span class="hoy-t">'+ic(L.hoyHecho?'check':'calendar')+(L.hoyHecho?'Día completado':'Hoy')+'</span>'+
     '<span class="hoy-k">'+ic('flame')+L.racha+'<span class="sep"></span>'+ic('medal')+L.saldo.toLocaleString('es-ES')+'</span></span>'+
-    progresoHoy(L)+aviso+'</button>';
+    progresoHoy(L)+aviso+nivelHTML(L,true)+'</button>';
 }
 /* Bloque de celebración en la pantalla de resultado */
 function celebracion(nv,L){
@@ -1225,6 +1252,8 @@ function celebracion(nv,L){
 const ANIMO=['¡Sigue así!','Cada día cuenta. ¡Mañana más!','Lo estás haciendo genial.','La constancia es tu superpoder.','¡A por la siguiente!'];
 function logrosDe(nv,L){
   const out=[];
+  if(nv.nivel)out.push({g:'tiempo',ic:'star',t:'¡Nuevo título: '+nv.nivel.nombre+'!',x:'Ya tienes '+L.puntos.toLocaleString('es-ES')+' XP. El siguiente es «'+nv.nivel.siguiente+'».',med:true});
+  if(nv.tituloRacha)out.push({g:'racha',ic:'flame',t:'Tu racha ahora es '+nv.tituloRacha.nombre,x:plural(L.racha,'día seguido','días seguidos')+'. A los '+nv.tituloRacha.hasta+' será «'+nv.tituloRacha.siguiente+'».'});
   if(nv.salvada)out.push({g:'racha',ic:'flame',t:'¡Racha salvada!',x:'Tu racha de '+plural(nv.salvada,'día','días')+' sigue viva. Ahora completa el día de hoy para que siga creciendo.'});
   if(nv.diaHecho)out.push({g:'dias',ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
   if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({g:'racha',ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
@@ -1316,7 +1345,7 @@ function medallasHTML(L){
     const sig=m.cada?(m.cada-(x.valor%m.cada)):Math.max(0,m.meta-x.valor);
     const det=m.cada===1?(ok?'×'+x.veces:m.txt):m.cada?(ok?'×'+x.veces+' · próxima en '+plural(sig,'día','días'):'Faltan '+plural(sig,'día','días')):
       ok?'+'+m.pts+' puntos':(m.grupo==='otras'&&m.id==='primera'?m.txt:'Llevas '+Math.min(x.valor,m.meta)+' de '+m.meta);
-    return '<div class="med g-'+m.grupo+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b><small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
+    return '<div class="med g-'+m.grupo+(ok?' ok':'')+'">'+ic(m.ic)+'<b>'+esc(m.nombre)+'</b>'+(m.sub?'<small class="med-sub">'+esc(m.sub)+'</small>':'')+'<small>'+esc(det)+'</small>'+(ok?'':'<span class="sr">Aún no conseguida. '+esc(m.txt)+'</span>')+'</div>';
   };
   const grupos=[['dias','Días hechos'],['racha','Días seguidos'],['combo','Aciertos seguidos']]
     .concat(PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>['p-'+p.id,p.nombre]))
@@ -1362,7 +1391,11 @@ function renderLogros(){
   const L=calcularLogros();
   app.innerHTML='<p class="eyebrow">Logros</p><h1>Mis logros</h1>'+
     '<p class="sub">Un día cuenta cuando respondes '+META.preguntas+' preguntas y aciertas '+META.aciertos+'. Puedes hacerlo en varias rondas.</p>'+
-    '<div class="kpis"><div class="kpi"><b>'+L.racha+'</b><small>Racha</small></div><div class="kpi"><b>'+L.mejorRacha+'</b><small>Mejor racha</small></div><div class="kpi"><b>'+L.saldo.toLocaleString('es-ES')+'</b><small>Puntos</small></div></div>'+
+    nivelHTML(L)+
+    '<div class="kpis kpis-t"><div class="kpi"><b>'+L.racha+'</b><small>Racha</small><span class="kpi-t">'+esc(titulo('racha',L.racha).nombre)+'</span></div>'+
+      '<div class="kpi"><b>'+L.mejorCombo+'</b><small>Mejor serie</small><span class="kpi-t">'+esc(titulo('combo',L.mejorCombo).nombre)+'</span></div>'+
+      '<div class="kpi"><b>'+L.saldo.toLocaleString('es-ES')+'</b><small>Puntos</small><span class="kpi-t">para canjear</span></div></div>'+
+    '<p class="hint" style="margin:-28px 0 32px">Mejor racha: '+plural(L.mejorRacha,'día','días')+' («'+esc(titulo('racha',L.mejorRacha).nombre)+'»)</p>'+
     '<section class="sec-block"><h2>Hoy</h2><div class="box hoy-box"><p class="hoy-q">'+ic(L.hoyHecho?'check':'calendar')+'<b>'+esc(quePasa(L))+'</b></p>'+progresoHoy(L)+
       (L.enRiesgo?'<p class="hint">Si hoy no llegas, la racha de '+plural(L.racha,'día','días')+' vuelve a empezar.</p>':'')+
       (L.hoyHecho?'':'<button class="btn" data-a="inicio" style="margin-top:16px">Repasar '+ic('arrow')+'</button>')+'</div></section>'+

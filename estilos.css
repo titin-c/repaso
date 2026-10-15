@@ -438,3 +438,17 @@ button.cal-d{font:inherit;cursor:pointer}
 .dia-des dd{margin:0;font-variant-numeric:tabular-nums}
 .dia-med{font-size:15px;line-height:2}
 .dia-med .ic{width:20px;height:20px;margin-right:8px}
+
+/* Títulos y experiencia */
+.nivel{border:1px solid var(--ink);padding:16px;margin:0 0 24px;background:linear-gradient(135deg,var(--t-amarillo0) 0%,var(--t-naranja) 100%)}
+.nivel-r{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px}
+.nivel-t{display:flex;align-items:center;gap:8px;font-size:20px}
+.nivel-t b{font-weight:700}
+.nivel-xp{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.nivel .linea{flex:none}
+.nivel small{display:block;margin-top:8px;font-size:12px;color:var(--muted)}
+.nivel.peq{border:0;border-top:1px solid var(--line);background:none;padding:12px 0 0;margin:12px 0 0}
+.nivel.peq .nivel-t{font-size:15px}
+.nivel.peq .nivel-t .ic{width:18px;height:18px}
+.kpis-t .kpi-t{display:block;font-size:13px;margin-top:4px;color:var(--ink);font-weight:500}
+.med-sub{color:var(--muted)}
