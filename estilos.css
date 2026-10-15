@@ -423,3 +423,18 @@ a.btn{text-decoration:none}
 .rescate .btn.mini{display:inline-flex}
 .cal-d.salvado{border:1px dashed var(--ink);color:var(--ink)}
 .cal-m.salvado{border:1px dashed var(--ink)}
+
+/* Detalle del día */
+button.cal-d{font:inherit;cursor:pointer}
+.cal-sem{display:flex;gap:8px;align-items:center;margin:10px 0 0;font-size:13px;color:var(--muted)}
+.cal-sem .ic{width:18px;height:18px;flex:none}
+.cal-sem b{color:var(--ink);font-weight:500}
+.dia-est{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 14px}
+.dia-est .ic{width:20px;height:20px}
+.dia-tot{margin-bottom:16px}
+.dia-des{display:grid;gap:0;margin:0 0 8px;border-top:1px solid var(--line)}
+.dia-des div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.dia-des dt{color:var(--muted)}
+.dia-des dd{margin:0;font-variant-numeric:tabular-nums}
+.dia-med{font-size:15px;line-height:2}
+.dia-med .ic{width:20px;height:20px;margin-right:8px}

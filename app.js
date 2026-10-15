@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='20';
+const VERSION='21';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -974,7 +974,8 @@ const vecesMedalla=(m,L)=>m.cada?Math.floor(m.v(L)/m.cada):(m.v(L)>=m.meta?1:0);
 function calcularLogros(R,ahora){
   R=R||Datos.resultados();ahora=ahora||new Date();
   const L={dias:{},diasHechos:0,racha:0,mejorRacha:0,combo:0,mejorCombo:0,recuperadas:0,rondas:R.length,puntos:0,puntosRespuestas:0,hoy:diaClave(ahora),porDia:{}};
-  const sumar=(k,n)=>{L.porDia[k]=(L.porDia[k]||0)+n};
+  L.porDiaCat={};L.rondasDia={};
+  const sumar=(k,n,cat)=>{L.porDia[k]=(L.porDia[k]||0)+n;const c=L.porDiaCat[k]||(L.porDiaCat[k]={});c[cat||'otros']=(c[cat||'otros']||0)+n};
   const ult=new Map(),falloDia=new Map(),okDia=new Map(),respDia={},semDia={},asigDia={},subDia={},porId=new Map(Datos.todas().map(q=>[q.id,q]));
   L.prac={};PRACTICAS.forEach(p=>{L.prac[p.id]={ok:0,retos:0,dia:{}}});
   L.desglose={};
@@ -998,7 +999,7 @@ function calcularLogros(R,ahora){
         n*=fac;
         if(!libre){const ya=respDia[k]||0,v=curvaDia(ya+n)-curvaDia(ya);if(v<n-1e-9)g.reducido=true;respDia[k]=ya+n;n=v}
       }
-      L.puntosRespuestas+=n;sumar(k,n);g.puntos+=n;
+      L.puntosRespuestas+=n;sumar(k,n,'resp');g.puntos+=n;
     };
     const val=t=>v3?V3[t]:PUNTOS[t];
     if(r.avisos)L.combo=0;   /* un aviso no corta los fallos… pero tampoco deja seguir la serie de aciertos */
@@ -1015,7 +1016,7 @@ function calcularLogros(R,ahora){
         const repetidaHoy=nuevas&&!recuperada&&okDia.get(x.id)===k;
         const pr=practicaDe(porId.get(x.id));
         if(pr&&!repetidaHoy){const P=L.prac[pr.id];P.ok++;P.dia[k]=(P.dia[k]||0)+1;
-          if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts);L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
+          if(P.dia[k]===pr.reto){P.retos++;sumar(k,RETO.pts,'retos');L.puntosRetos=(L.puntosRetos||0)+RETO.pts}}
         const libre=!!(pr&&pr.id==='problemas');
         if(!nuevas)dar(PUNTOS.acierto+(recuperada?PUNTOS.recuperada:0));
         else if(recuperada){g.recuperadas++;dar(val('recuperar'),libre)}
@@ -1028,13 +1029,14 @@ function calcularLogros(R,ahora){
       if(x.id)ult.set(x.id,!!x.ok);
     });
     else{d.n+=r.total||0;d.ok+=r.aciertos||0}
-    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;const b=reglasV3(k)?V3.dia:PUNTOS.dia;L.puntosDias=(L.puntosDias||0)+b;sumar(k,b)}
+    (L.rondasDia[k]=L.rondasDia[k]||[]).push({fecha:r.fecha,r,g});
+    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;const b=reglasV3(k)?V3.dia:PUNTOS.dia;L.puntosDias=(L.puntosDias||0)+b;sumar(k,b,'dia')}
   });
   /* variedad: +25 por cada asignatura más (con 5 respuestas o más) el mismo día */
   L.puntosVariedad=0;
   Object.keys(asigDia).forEach(k=>{
     const n=Object.values(asigDia[k]).filter(v=>v>=PUNTOS.variedadMin).length,pts=Math.min(PUNTOS.variedadMax,Math.max(0,n-1))*PUNTOS.variedad;
-    if(pts){L.puntosVariedad+=pts;sumar(k,pts)}
+    if(pts){L.puntosVariedad+=pts;sumar(k,pts,'variedad')}
     if(k===L.hoy)L.asigHoy=n;
   });
   subidasLogros(L,R,sumar);
@@ -1110,7 +1112,7 @@ function subidasLogros(L,R,sumar){
       L.preguntasNuevas+=total;
       const orden=L._subDia[dia]=(L._subDia[dia]||0)+1,base=V3.subir[Math.min(orden,V3.subir.length)-1];
       const pts=Math.round(base*Math.min(1,total/V3.subirLleno));
-      L.puntosSubidas+=pts;sumar(dia,pts);L.ultimaSubida={pts,orden,total};
+      L.puntosSubidas+=pts;sumar(dia,pts,'subir');L.ultimaSubida={pts,orden,total};
       return;
     }
     Object.keys(nuevas).forEach(t=>{
@@ -1124,7 +1126,7 @@ function subidasLogros(L,R,sumar){
       /* tope diario de puntos por subir (con las reglas nuevas): subir temas de relleno no compensa */
       let pts=n*S.pregunta+(esNuevo?SUBIR.tema:0);
       if(reglasNuevas(dia)){const ya2=L._subDia[dia]||0;pts=Math.max(0,Math.min(pts,SUBIR.topeDia-ya2));L._subDia[dia]=ya2+pts}
-      L.puntosSubidas+=pts;sumar(dia,pts);
+      L.puntosSubidas+=pts;sumar(dia,pts,'subir');
       if(esNuevo){L.temasNuevos++;temasDia[dia]=(temasDia[dia]||0)+1;creados.push({t,fecha:String(s.fecha)})}
     });
   });
@@ -1136,7 +1138,7 @@ function subidasLogros(L,R,sumar){
       if(dia||d.curso+'|'+d.asignatura+'|'+d.tema!==c.t)return;n++;if(d.ok)ok++;
       if(n>=SUBIR.estrenoN&&ok>=SUBIR.estrenoOk)dia=diaClave(r.fecha);
     })});
-    if(dia){L.temasEstrenados++;L.puntosSubidas+=SUBIR.estreno;sumar(dia,SUBIR.estreno)}
+    if(dia){L.temasEstrenados++;L.puntosSubidas+=SUBIR.estreno;sumar(dia,SUBIR.estreno,'estreno')}
   });
 }
 /* Qué ha cambiado con la última ronda (para celebrarlo en el resultado) */
@@ -1260,6 +1262,33 @@ function modalLogros(nv,L,donde){
 
 /* ---------- pantalla Logros ---------- */
 const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function puntosSemana(L){let t=0,k=semanaDe(L.hoy);for(let i=0;i<7;i++){t+=L.porDia[k]||0;k=sumarDias(k,1)}return t}
+const DIAS_SEM=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+/* Detalle de un día del calendario: puntos por tipo, rondas y medallas ganadas ese día */
+function verDia(el){
+  const k=el.dataset.k,L=calcularLogros(),x=L.dias[k],p=k.split('-').map(Number),f=new Date(p[0],p[1]-1,p[2]);
+  const R=Datos.resultados(),fin=f.getTime()+864e5;
+  /* medallas de ese día: las que hay al acabar el día menos las que había al empezarlo */
+  const medDe=LL=>LL.medallas.reduce((t,m)=>t+(m.puntos||0),0);
+  const Lantes=calcularLogros(R.filter(r=>Date.parse(r.fecha)<f.getTime()),new Date(fin-1)),Ldesp=calcularLogros(R.filter(r=>Date.parse(r.fecha)<fin),new Date(fin-1));
+  const nuevas=Ldesp.medallas.filter((m,i)=>m.veces>Lantes.medallas[i].veces);
+  const medPts=Math.max(0,medDe(Ldesp)-medDe(Lantes));
+  const C=L.porDiaCat[k]||{},T=[['resp','Respuestas'],['dia','Día completado'],['retos','Retos del día'],['variedad','Variedad de asignaturas'],['subir','Subir tests'],['estreno','Tema estrenado']];
+  const total=Math.round(L.porDia[k]||0)+medPts;
+  const estado=x&&x.hecho?ic('check')+'Día completado':L.salvados.has(k)?ic('flame')+'Racha salvada con problemas':ic('calendar')+'Jugado, sin completar';
+  const rondas=(L.rondasDia[k]||[]).map(({r,g})=>{
+    const que=r.practica?'Reto de '+((PRACTICAS.find(q=>q.id===r.practica)||{}).nombre||'').toLowerCase():[r.asignatura,r.tema].filter(Boolean).join(' · ')||'Todo mezclado';
+    return '<div class="ses"><span>'+esc(que)+'<small>'+new Date(r.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})+' · '+r.aciertos+'/'+r.total+'</small></span><span>+'+Math.round(g.puntos)+'</span></div>';
+  }).join('');
+  abrirModal('<p class="eyebrow">'+DIAS_SEM[f.getDay()]+'</p><h2 id="mTit" class="m-tit">'+f.getDate()+' de '+MESES[f.getMonth()]+'</h2>'+
+    '<p class="dia-est">'+estado+(x?' · '+x.n+' preguntas, '+x.ok+' aciertos':'')+'</p>'+
+    '<p class="pts-gan dia-tot">+'+total.toLocaleString('es-ES')+'<small>puntos ese día</small></p>'+
+    '<dl class="dia-des">'+T.filter(([c])=>C[c]).map(([c,t])=>'<div><dt>'+t+'</dt><dd>+'+Math.round(C[c]).toLocaleString('es-ES')+'</dd></div>').join('')+
+      (medPts?'<div><dt>Medallas</dt><dd>+'+medPts.toLocaleString('es-ES')+'</dd></div>':'')+'</dl>'+
+    (nuevas.length?'<p class="res-t">Medallas de ese día</p><p class="dia-med">'+nuevas.map(m=>ic(m.m.ic)+esc(m.m.nombre)).join('<br>')+'</p>':'')+
+    (rondas?'<p class="res-t">Rondas</p><div>'+rondas+'</div>':'')+
+    '<button class="btn" data-a="cerrar" style="margin-top:20px">Cerrar</button>');
+}
 function calendario(L){
   const hoy=new Date(),base=new Date(hoy.getFullYear(),hoy.getMonth()+(E.mes||0),1);
   const y=base.getFullYear(),m=base.getMonth(),dias=new Date(y,m+1,0).getDate(),hueco=(base.getDay()+6)%7;
@@ -1270,13 +1299,16 @@ function calendario(L){
     const k=diaClave(new Date(y,m,d)),x=L.dias[k],salv=L.salvados.has(k),cls=x&&x.hecho?' hecho':salv?' salvado':x?' jugado':'';
     if(x&&x.hecho)hechosMes++;
     const est=x&&x.hecho?'día completado':salv?'racha salvada con problemas':x?'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)':'';
-    celdas+='<span class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" role="img" aria-label="'+d+' de '+MESES[m]+(k===L.hoy?', hoy':'')+(est?', '+est:'')+'">'+d+'</span>';
+    const lbl=d+' de '+MESES[m]+(k===L.hoy?', hoy':'')+(est?', '+est:'');
+    celdas+=(x||salv)?'<button class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" data-a="verDia" data-k="'+k+'" aria-label="'+lbl+'. Ver los puntos de ese día">'+d+'</button>':
+      '<span class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" role="img" aria-label="'+lbl+'">'+d+'</span>';
   }
   return '<section class="sec-block"><div class="head-row cal-h"><button class="icbtn" data-a="mesAnt" aria-label="Mes anterior">'+ic('back')+'</button>'+
     '<h2 aria-live="polite">'+MESES[m]+' '+y+'</h2>'+
     '<button class="icbtn" data-a="mesSig" aria-label="Mes siguiente"'+((E.mes||0)>=0?' disabled':'')+'>'+ic('arrow')+'</button></div>'+
     '<div class="cal" role="group" aria-label="Días de '+MESES[m]+'">'+['L','M','X','J','V','S','D'].map(x=>'<span class="cal-s" aria-hidden="true">'+x+'</span>').join('')+celdas+'</div>'+
-    '<p class="cal-ley"><span><i class="cal-m hecho"></i>Completado</span><span><i class="cal-m jugado"></i>Jugado</span>'+(L.salvados.size?'<span><i class="cal-m salvado"></i>Salvado</span>':'')+'<span>'+plural(hechosMes,'día este mes','días este mes')+'</span></p></section>';
+    '<p class="cal-ley"><span><i class="cal-m hecho"></i>Completado</span><span><i class="cal-m jugado"></i>Jugado</span>'+(L.salvados.size?'<span><i class="cal-m salvado"></i>Salvado</span>':'')+'<span>'+plural(hechosMes,'día este mes','días este mes')+'</span></p>'+
+    '<p class="cal-sem">'+ic('info')+'<span>Toca un día para ver sus puntos · Esta semana llevas <b>'+Math.round(puntosSemana(L)).toLocaleString('es-ES')+'</b></span></p></section>';
 }
 function medallasHTML(L){
   const fila=x=>{
@@ -2085,7 +2117,7 @@ const A={
   inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),logros:()=>{cerrarModal();E.mes=0;ir('logros')},
   mesAnt:()=>{E.mes--;renderLogros();const b=$('[data-a=mesAnt]');if(b)b.focus()},
   mesSig:()=>{if(E.mes<0)E.mes++;renderLogros();const b=$('[data-a='+(E.mes<0?'mesSig':'mesAnt')+']');if(b)b.focus()},
-  canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,
+  verDia,canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,
   avisarError,enviarAviso,corregirAviso,resolverAviso,avisos:()=>ir('avisos'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
   editor:()=>ir('editor'),
   editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},
