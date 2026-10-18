@@ -452,3 +452,7 @@ button.cal-d{font:inherit;cursor:pointer}
 .nivel.peq .nivel-t .ic{width:18px;height:18px}
 .kpis-t .kpi-t{display:block;font-size:13px;margin-top:4px;color:var(--ink);font-weight:500}
 .med-sub{color:var(--muted)}
+
+.hoy-libre{display:flex;gap:10px;align-items:flex-start;margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:14px}
+.hoy-libre .ic{width:20px;height:20px;flex:none}
+.hoy-libre b{font-weight:500}

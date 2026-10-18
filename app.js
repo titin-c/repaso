@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='22';
+const VERSION='23';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -910,6 +910,10 @@ const reglasNuevas=k=>!DESDE_NUEVOS||k>=DESDE_NUEVOS;
    día: enteros hasta 150, mitad hasta 300, ⅛ después · semana: lo de responder por encima de 800 vale la mitad
    día completado 40 · Semana/Quincena/Mes 50/100/250 · subir: 1.er test del día 100, 2.º 50, resto 10,
    proporcional si trae menos de 25 preguntas nuevas (mínimo 5) · el premio más caro pide 100 días completados */
+/* Fines de semana: no hace falta jugar para mantener la racha (son «días libres»).
+   Si los completa, cuentan para la racha y el día completado da un extra. */
+const FINDE=(CONFIG.diasLibres||[0,6]),FINDE_EXTRA=30;
+const esLibre=k=>{const p=k.split('-').map(Number);return FINDE.indexOf(new Date(p[0],p[1]-1,p[2]).getDay())>=0};
 const DESDE_V3=CONFIG.puntosV3Desde==null?'2026-10-13':String(CONFIG.puntosV3Desde);
 const reglasV3=k=>!DESDE_V3||k>=DESDE_V3;
 const V3={nueva:7,recuperar:8,repaso:3,repetida:1,minimo:1,tramo1:150,tramo2:300,resto:.125,semana:800,dia:40,
@@ -1055,7 +1059,7 @@ function calcularLogros(R,ahora){
     });
     else{d.n+=r.total||0;d.ok+=r.aciertos||0}
     (L.rondasDia[k]=L.rondasDia[k]||[]).push({fecha:r.fecha,r,g});
-    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;const b=reglasV3(k)?V3.dia:PUNTOS.dia;L.puntosDias=(L.puntosDias||0)+b;sumar(k,b,'dia')}
+    if(!d.hecho&&d.n>=META.preguntas&&d.ok>=META.aciertos){d.hecho=true;const b=(reglasV3(k)?V3.dia:PUNTOS.dia)+(esLibre(k)?FINDE_EXTRA:0);L.puntosDias=(L.puntosDias||0)+b;sumar(k,b,'dia')}
   });
   /* variedad: +25 por cada asignatura más (con 5 respuestas o más) el mismo día */
   L.puntosVariedad=0;
@@ -1076,16 +1080,16 @@ function calcularLogros(R,ahora){
      Como mucho un rescate cada RESCATE.cada días. */
   L.salvados=new Set();let ultRescate=null;
   const probDia=(L.prac.problemas||{dia:{}}).dia;
-  const vivo=k=>hecho(k)||L.salvados.has(k);
+  /* un día libre (finde) sin jugar no corta la racha, pero tampoco la alarga */
+  const vivo=k=>hecho(k)||L.salvados.has(k)||(esLibre(k)&&k<=L.hoy&&k>=primerDia);
+  const primerDia=Object.keys(L.dias).sort()[0]||L.hoy;
   Object.keys(L.dias).sort().forEach(k=>{
     const ayer=sumarDias(k,-1),anteayer=sumarDias(k,-2);
     if((probDia[k]||0)>=RESCATE.n&&!vivo(ayer)&&vivo(anteayer)&&(!ultRescate||k>=sumarDias(ultRescate,RESCATE.cada))){L.salvados.add(ayer);ultRescate=k}
   });
   const rachaHasta=k=>{let n=0;while(vivo(k)){if(hecho(k))n++;k=sumarDias(k,-1)}return n};
   /* mejor racha (los días salvados unen, pero no suman) */
-  let run=0,prev=null;
-  Object.keys(L.dias).concat([...L.salvados]).filter((k,i,a)=>a.indexOf(k)===i&&vivo(k)).sort().forEach(k=>{
-    run=(prev&&sumarDias(prev,1)===k)?run+(hecho(k)?1:0):(hecho(k)?1:0);if(run>L.mejorRacha)L.mejorRacha=run;prev=k});
+  {let run=0;for(let k=primerDia;k<=L.hoy;k=sumarDias(k,1)){run=vivo(k)?run+(hecho(k)?1:0):0;if(run>L.mejorRacha)L.mejorRacha=run}}
   /* racha actual: termina hoy o, si hoy aún no está hecho, ayer */
   L.racha=rachaHasta(vivo(L.hoy)?L.hoy:sumarDias(L.hoy,-1));
   /* ¿se puede salvar hoy la racha de ayer? */
@@ -1096,7 +1100,8 @@ function calcularLogros(R,ahora){
   const h=L.dias[L.hoy]||{n:0,ok:0,hecho:false};
   L.hoyN=h.n;L.hoyOk=h.ok;L.hoyHecho=h.hecho;
   L.faltanN=Math.max(0,META.preguntas-h.n);L.faltanOk=Math.max(0,META.aciertos-h.ok);
-  L.enRiesgo=L.racha>0&&!h.hecho;
+  L.enRiesgo=L.racha>0&&!h.hecho&&!esLibre(L.hoy);
+  L.hoyLibre=esLibre(L.hoy);
   /* medallas y puntos */
   L.medallas=MEDALLAS.map(m=>({m,veces:vecesMedalla(m,L),valor:m.v(L)}));
   L.respHoy=respDia[L.hoy]||0;
@@ -1216,6 +1221,7 @@ function empezarPractica(id){
 function bannerHoy(){
   if(!Datos.resultados().length)return '';
   const L=calcularLogros(),tarde=new Date().getHours()>=18;
+  const libre=L.hoyLibre&&!L.hoyHecho&&L.racha>0?'<p class="hoy-libre">'+ic('star')+'<span>Hoy es día libre: tu racha no se pierde si no juegas. Si completas el día, <b>+'+FINDE_EXTRA+' extra</b>.</span></p>':'';
   const aviso=L.enRiesgo&&tarde
     ?'<p class="hoy-aviso">'+ic('alert')+'<span>Tu racha de '+plural(L.racha,'día','días')+' se pierde a medianoche. '+quePasa(L)+'.</span></p>':'';
   const hayProb=preguntasDePractica('problemas').length>0;
@@ -1225,7 +1231,7 @@ function bannerHoy(){
   return resc+'<button class="hoy'+(aviso?' riesgo':'')+'" data-a="logros" aria-label="Hoy: '+esc(quePasa(L))+'. Ver mis logros">'+
     '<span class="hoy-c"><span class="hoy-t">'+ic(L.hoyHecho?'check':'calendar')+(L.hoyHecho?'Día completado':'Hoy')+'</span>'+
     '<span class="hoy-k">'+ic('flame')+L.racha+'<span class="sep"></span>'+ic('medal')+L.saldo.toLocaleString('es-ES')+'</span></span>'+
-    progresoHoy(L)+aviso+nivelHTML(L,true)+'</button>';
+    progresoHoy(L)+aviso+libre+nivelHTML(L,true)+'</button>';
 }
 /* Bloque de celebración en la pantalla de resultado */
 function celebracion(nv,L){
@@ -1412,6 +1418,7 @@ function renderLogros(){
       '<li>Por subir un test: el 1.º del día <b>'+V3.subir[0]+'</b>, el 2.º <b>'+V3.subir[1]+'</b> y los demás <b>'+V3.subir[2]+'</b>. Valor completo con '+V3.subirLleno+' preguntas nuevas o más; si trae menos, la parte proporcional</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
       (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
+      '<li>Sábados y domingos son <b>días libres</b>: si no juegas, la racha no se pierde; si completas el día, <b>+'+FINDE_EXTRA+'</b> extra</li>'+
       '<li>Si un día no lo completas, al día siguiente puedes <b>salvar la racha</b> acertando '+RESCATE.n+' problemas (una vez por semana)</li>'+
       '<li>Cada medalla da puntos extra</li></ul></details>';
 }
