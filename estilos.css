@@ -456,3 +456,31 @@ button.cal-d{font:inherit;cursor:pointer}
 .hoy-libre{display:flex;gap:10px;align-items:flex-start;margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:14px}
 .hoy-libre .ic{width:20px;height:20px;flex:none}
 .hoy-libre b{font-weight:500}
+
+/* ---------- v24: mensaje, meta, cofre, exprés ---------- */
+.mensaje{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--ink);background:var(--t-rosa0,#FFF9FB);padding:16px;margin:0 0 16px}
+.mensaje>svg{flex:none;width:22px;height:22px;margin-top:2px}
+.mensaje .eyebrow{margin:0 0 4px}
+.mensaje-t{margin:0 0 12px;font-size:17px;line-height:1.4;white-space:pre-line;overflow-wrap:anywhere}
+.meta,.cofre,.expres{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--ink);background:var(--bg);padding:14px 12px;margin:0 0 12px;min-height:56px;color:inherit;font:inherit}
+.meta{flex-direction:column;align-items:stretch;gap:8px}
+.meta.vacia{flex-direction:row;align-items:center;border-style:dashed}
+.meta b,.cofre b,.expres b{font-weight:500}
+.meta small,.cofre small,.expres small{display:block;font-size:12px;color:var(--muted)}
+.meta>span:not(.meta-bar),.cofre>span,.expres>span{flex:1;min-width:0}
+.meta-r{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.meta-r>span:first-child{display:flex;gap:8px;align-items:center;min-width:0}
+.meta svg,.cofre svg,.expres svg{flex:none;width:20px;height:20px}
+.meta-bar{display:block;height:4px;background:var(--line);position:relative;overflow:hidden}
+.meta-bar>i{display:block;height:100%;background:var(--ink)}
+.cofre.listo{background:var(--t-amarillo0,#FFFDF5);border-width:2px}
+.cofre-l{display:flex;gap:10px;align-items:center;margin:0 0 12px;font-size:14px;color:var(--muted)}
+.cofre-l svg{flex:none;width:18px;height:18px}
+.cofre-l b{color:var(--ink);font-weight:500}
+.expres{margin:0 0 32px}
+.practicas+.expres{margin-top:-24px}
+.meta-b{white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--bg);padding:4px 8px;font-size:12px;min-height:32px;margin-right:8px;color:inherit;font-family:inherit;cursor:pointer}
+.meta-b svg{width:14px;height:14px}
+.meta-b.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.premio-acts{display:inline-flex;align-items:center}
+.premio-pc{display:inline-flex;align-items:center}

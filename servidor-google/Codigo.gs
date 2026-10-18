@@ -75,7 +75,7 @@ function avisos() {
 }
 function ajustes() {
   var o = {};
-  filas(hoja('Ajustes', CAB_J)).forEach(function(f){ o[String(f[0])] = String(f[1]); });
+  filas(hoja('Ajustes', CAB_J)).forEach(function(f){ o[String(f[0])] = String(f[1]); o[String(f[0]) + 'Fecha'] = String(f[2]); });
   return o;
 }
 
@@ -146,6 +146,15 @@ function doPost(e) {
     if (d.accion === 'resolverAviso') {
       var ok4 = cambiarEstado(hoja('Avisos', CAB_V), String(d.id || ''), 'revisado', 5);
       return json(ok4 ? {ok:true} : {ok:false, error:'no se ha encontrado'});
+    }
+    if (d.accion === 'ajuste') {
+      // «meta» (el premio que persigue Pepa) se puede cambiar sin PIN; «mensaje» (nota de papá o mamá) pide el PIN
+      var claves = {meta: false, mensaje: true};
+      if (!(d.clave in claves)) return json({ok:false, error:'ajuste no permitido'});
+      if (claves[d.clave] && String(d.pin || '') !== String(PIN_PADRES)) return json({ok:false, error:'PIN incorrecto'});
+      var ahora2 = new Date().toISOString();
+      hoja('Ajustes', CAB_J).appendRow([d.clave, texto(d.valor, 500), ahora2]);
+      return json({ok:true});
     }
     if (d.accion === 'reiniciar') {
       // Empezar de cero: los puntos, rondas y medallas cuentan desde ahora. No se borra nada; con «deshacer» vuelve todo.

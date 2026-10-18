@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='23';
+const VERSION='24';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -491,7 +491,7 @@ const Datos={
   },
   usar(c){
     this.archivos=c.archivos||[];this.fecha=c.fecha;this.resSrv=c.resSrv||[];this.alias=c.alias||[];
-    this.inicio=(c.ajustes&&c.ajustes.inicio)||'';this.ver++;this.avisos=c.avisos||[];
+    this.inicio=(c.ajustes&&c.ajustes.inicio)||'';this.ajustes=c.ajustes||{};this.ver++;this.avisos=c.avisos||[];
     this.premios=(c.premios||[]).map(p=>({id:String(p.id),nombre:norm(p.nombre),puntos:Math.round(+p.puntos||0)}));this.canjes=c.canjes||[];
     this.subidas=(c.subidas||[]).slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(s=>{
       let r;try{r=parsearXML(arreglarXML(s.xml),s.nombre)}catch(e){r={ok:[],errores:[e.message],todas:[]}}
@@ -575,7 +575,7 @@ function ocupado(btn,p,texto){
 }
 function conBoton(btn,texto,fn){return ocupado(btn,fn(),texto.replace(/…$/,''))}
 const OCUPADO={actualizar:'Actualizando',subirImp:'Guardando',guardarNombre:'Guardando',unirFicha:'Uniendo',eliminarFicha:'Eliminando',
-  unirPar:'Uniendo',canjear:'Pidiendo',resolverCanje:'Guardando',hacerReinicio:'Guardando',resolverAviso:'Guardando',retirarEd:'Quitando',pegarResp:'Pegando',
+  unirPar:'Uniendo',canjear:'Pidiendo',resolverCanje:'Guardando',hacerReinicio:'Guardando',guardarMensaje:'Enviando',resolverAviso:'Guardando',retirarEd:'Quitando',pegarResp:'Pegando',
   deshacerAlias:el=>/recuperar/i.test(el.textContent)?'Recuperando':'Deshaciendo'};
 const etiquetaOcupado=(a,el)=>typeof OCUPADO[a]==='function'?OCUPADO[a](el):(OCUPADO[a]||'Un momento');
 /* Barra fina bajo la cabecera mientras se habla con el servidor */
@@ -630,7 +630,7 @@ function renderInicio(){
     lista.map(v=>'<option value="'+esc(v)+'"'+(v===val?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select></div>';
   app.innerHTML=avisoConexion()+
     (Datos.extra.length?aviso('info','Estás probando '+plural(Datos.extra.length,'pregunta nueva','preguntas nuevas')+' que aún no están subidas. <button class="link" data-a="quitarExtra">Dejar de probar</button>'):'')+
-    bannerHoy()+practicasHTML()+
+    mensajeHTML()+bannerHoy()+metaHTML()+cofreHTML()+practicasHTML()+expresHTML()+
     '<p class="eyebrow">Hola, Pepa</p><h1>¿Qué repasamos hoy?</h1><p class="sub">Elige un tema o déjalo todo en «Todos» para mezclar.</p>'+
     '<div class="box">'+
       sel('fCurso','Curso','Todos los cursos',L.cursos,f.curso)+
@@ -817,6 +817,7 @@ function terminar(){
     total,aciertos,
     detalle:s.preguntas.map(({q},i)=>Object.assign({id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,ok:!!(s.resp[i]&&s.resp[i].ok)},s.resp[i]&&s.resp[i].aviso&&!s.resp[i].ok?{aviso:true}:{}))};
   if(s.practica){reg.practica=s.practica;reg.curso=reg.asignatura=reg.tema=null}
+  if(s.expres){reg.expres=true;reg.curso=reg.asignatura=reg.tema=null}
   const antes=calcularLogros();
   Datos.guardarResultado(reg);
   const L=calcularLogros(),nv=novedades(antes,L);
@@ -868,7 +869,7 @@ function renderProgreso(){
     '<section class="sec-block"><h2>Por asignatura</h2>'+porAsig.map(g=>barra(g.k,g)).join('')+'</section>'+
     (reforzar.length?'<section class="sec-block"><h2>Temas para reforzar</h2>'+reforzar.map(g=>{const t=g.k.split('||');return barra(t[1]+' · '+t[0],g,true)}).join('')+'</section>':'')+
     '<section class="sec-block"><h2>Últimas rondas</h2><div>'+R.slice(-6).reverse().map(r=>{
-      const que=r.practica?'Reto de '+(PRACTICAS.find(p=>p.id===r.practica)||{nombre:r.practica}).nombre.toLowerCase():[r.asignatura,r.tema].filter(Boolean).join(' · ')||'Todo mezclado';
+      const que=r.expres?'Ronda exprés':r.practica?'Reto de '+(PRACTICAS.find(p=>p.id===r.practica)||{nombre:r.practica}).nombre.toLowerCase():[r.asignatura,r.tema].filter(Boolean).join(' · ')||'Todo mezclado';
       return '<div class="ses"><span>'+esc(que)+'<small>'+fechaHora(r.fecha)+'</small></span><span>'+r.aciertos+'/'+r.total+'</span></div>';
     }).join('')+'</div></section>';
 }
@@ -930,6 +931,11 @@ const PRACTICAS=(CONFIG.practicas||[
 ]).map(p=>Object.assign({reto:5},p,{claves:(p.palabras||[]).map(w=>clave(w))}));
 /* reto diario de cada práctica: N aciertos (que den puntos) en el día → +20. Ortografía 20, problemas 5 */
 const RETO={pts:20};
+const EXPRES={n:5,ok:4,porSemana:2};
+const COFRE_DESDE=CONFIG.cofreDesde||'2026-10-19';
+const COFRE={dias:4,premios:[[100,'+100 puntos'],[150,'+150 puntos'],[200,'+200 puntos'],[250,'+250 puntos'],[150,'+150 puntos'],[500,'¡Cofre dorado! +500 puntos']]};
+/* el premio de cada cofre sale «al azar», pero siempre el mismo para esa semana (igual en todos los dispositivos) */
+function premioCofre(w){const P=COFRE.premios,i=hashN('cofre'+w)%P.length;return {pts:P[i][0],txt:P[i][1],dorado:P[i][0]>=500}}
 const RESCATE={n:4,cada:7,minRacha:2};   /* salvar la racha: 4 aciertos de problemas al día siguiente, una vez por semana */
 /* Solo cuentan las preguntas que pone papá o mamá (subidas «sin puntos»): así no se puede rellenar
    la práctica con preguntas fáciles inventadas para sacar el reto. */
@@ -1080,8 +1086,12 @@ function calcularLogros(R,ahora){
      Como mucho un rescate cada RESCATE.cada días. */
   L.salvados=new Set();let ultRescate=null;
   const probDia=(L.prac.problemas||{dia:{}}).dia;
+  /* Ronda exprés: entre semana, una exprés con 4 aciertos o más evita que se corte la racha (máx. 2 por semana) */
+  L.expres=new Set();
+  {const usadas={};R.forEach(r=>{if(!r.expres||(r.aciertos||0)<EXPRES.ok)return;const k=diaClave(r.fecha),w=semanaDe(k);
+    if(esLibre(k)||hecho(k)||L.expres.has(k)||(usadas[w]||0)>=EXPRES.porSemana)return;usadas[w]=(usadas[w]||0)+1;L.expres.add(k)})}
   /* un día libre (finde) sin jugar no corta la racha, pero tampoco la alarga */
-  const vivo=k=>hecho(k)||L.salvados.has(k)||(esLibre(k)&&k<=L.hoy&&k>=primerDia);
+  const vivo=k=>hecho(k)||L.salvados.has(k)||L.expres.has(k)||(esLibre(k)&&k<=L.hoy&&k>=primerDia);
   const primerDia=Object.keys(L.dias).sort()[0]||L.hoy;
   Object.keys(L.dias).sort().forEach(k=>{
     const ayer=sumarDias(k,-1),anteayer=sumarDias(k,-2);
@@ -1100,7 +1110,12 @@ function calcularLogros(R,ahora){
   const h=L.dias[L.hoy]||{n:0,ok:0,hecho:false};
   L.hoyN=h.n;L.hoyOk=h.ok;L.hoyHecho=h.hecho;
   L.faltanN=Math.max(0,META.preguntas-h.n);L.faltanOk=Math.max(0,META.aciertos-h.ok);
-  L.enRiesgo=L.racha>0&&!h.hecho&&!esLibre(L.hoy);
+  L.enRiesgo=L.racha>0&&!h.hecho&&!esLibre(L.hoy)&&!L.expres.has(L.hoy);
+  /* Cofre semanal: 4 días completados entre semana (lunes a viernes) abren el cofre de esa semana */
+  L.cofres={};L.puntosCofres=0;
+  hechos.forEach(k=>{if(esLibre(k)||semanaDe(k)<semanaDe(COFRE_DESDE))return;const w=semanaDe(k),c=L.cofres[w]||(L.cofres[w]={dias:0});c.dias++;
+    if(c.dias===COFRE.dias){c.abierto=k;c.premio=premioCofre(w);L.puntosCofres+=c.premio.pts;sumar(k,c.premio.pts,'cofre')}});
+  {const w=semanaDe(L.hoy),c=L.cofres[w]||{dias:0};L.cofreSemana={w,dias:c.dias,abierto:!!c.abierto,premio:c.premio}}
   L.hoyLibre=esLibre(L.hoy);
   /* medallas y puntos */
   L.medallas=MEDALLAS.map(m=>({m,veces:vecesMedalla(m,L),valor:m.v(L)}));
@@ -1110,7 +1125,7 @@ function calcularLogros(R,ahora){
   L.puntosRespuestas=Math.round(L.puntosRespuestas);
   const ptsMed=x=>{if(!x.m.ptsAntes)return x.veces*x.m.pts;const a=Math.min(x.veces,Math.floor(x.m.antes(L)/x.m.cada));return a*x.m.ptsAntes+(x.veces-a)*x.m.pts};
   L.medallas.forEach(x=>{x.puntos=ptsMed(x)});
-  L.puntos=L.puntosRetos+L.puntosRespuestas+L.puntosVariedad+L.puntosDias+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.puntos,0);
+  L.puntos=L.puntosCofres+L.puntosRetos+L.puntosRespuestas+L.puntosVariedad+L.puntosDias+L.puntosSubidas+L.medallas.reduce((s,x)=>s+x.puntos,0);
   /* ritmo: puntos al día de media en las dos últimas semanas (sin contar medallas) */
   let suma=0;for(let i=0;i<14;i++)suma+=L.porDia[sumarDias(L.hoy,-i)]||0;
   L.ritmo=suma/14;
@@ -1180,6 +1195,8 @@ function novedades(antes,despues){
     nivel:titulo('xp',despues.puntos).nombre!==titulo('xp',antes.puntos).nombre?titulo('xp',despues.puntos):null,
     tituloRacha:titulo('racha',despues.racha).nombre!==titulo('racha',antes.racha).nombre&&despues.racha>antes.racha?titulo('racha',despues.racha):null,
     salvada:despues.salvados.size>antes.salvados.size?despues.racha:0,
+    expresSalva:despues.expres.size>antes.expres.size?despues.racha:0,
+    cofre:!antes.cofreSemana.abierto&&despues.cofreSemana.abierto?despues.cofreSemana:null,
     record:despues.mejorRacha>antes.mejorRacha&&despues.mejorRacha>1,
     combo:despues.mejorCombo>antes.mejorCombo&&despues.mejorCombo>=5?despues.mejorCombo:0,
     temas:despues.temasNuevos-antes.temasNuevos,
@@ -1197,6 +1214,84 @@ function progresoHoy(L){
   const p=L.hoyHecho?100:Math.min(pct(L.hoyN,META.preguntas),pct(L.hoyOk,META.aciertos));
   return '<div class="hoy-l"><div class="linea" aria-hidden="true"><i style="width:'+p+'%"></i></div>'+
     '<p class="hoy-n"><span><b>'+Math.min(L.hoyN,99)+'</b>/'+META.preguntas+' preguntas</span><span><b>'+L.hoyOk+'</b>/'+META.aciertos+' aciertos</span></p></div>';
+}
+
+/* ---------- Mensaje de papá o mamá en la portada ---------- */
+function mensajeHTML(){
+  const a=Datos.ajustes||{},m=norm(a.mensaje),f=a.mensajeFecha||'';
+  if(!m||ls.get('repaso.msgLeido.v1','')===f)return '';
+  return '<div class="mensaje">'+ic('chat')+'<div><p class="eyebrow">Mensaje de papá o mamá</p><p class="mensaje-t">'+esc(m)+'</p>'+
+    '<button class="btn sec mini" data-a="leerMensaje">¡Gracias!</button></div></div>';
+}
+function escribirMensaje(){
+  const a=Datos.ajustes||{};
+  abrirModal('<p class="eyebrow">Solo para papá o mamá</p><h2 id="mTit" class="m-tit">Mensaje para Pepa</h2>'+
+    '<p>Le saldrá arriba al abrir la app hasta que pulse «¡Gracias!».</p>'+
+    '<div class="field"><label class="lbl-f" for="msgTxt">Mensaje</label><textarea class="in" id="msgTxt" maxlength="300" placeholder="¡Ánimo con el examen de mañana!">'+esc(a.mensaje||'')+'</textarea></div>'+
+    '<div class="field"><label class="lbl-f" for="pin">PIN</label><input class="in" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></div>'+
+    '<div class="stack"><button class="btn" data-a="guardarMensaje">'+ic('chat')+'Enviar mensaje</button>'+
+    (a.mensaje?'<button class="btn sec" data-a="guardarMensaje" data-borrar="1">Quitar el mensaje</button>':'')+
+    '<button class="link" data-a="cerrar">Cancelar</button></div>');
+}
+async function guardarMensaje(el){
+  const pin=norm(($('#pin')||{}).value),txt=el.dataset.borrar?'':norm(($('#msgTxt')||{}).value);
+  if(!pin){toast('Escribe el PIN.');$('#pin').focus();return}
+  if(!el.dataset.borrar&&!txt){toast('Escribe el mensaje.');$('#msgTxt').focus();return}
+  try{await servidorPost({accion:'ajuste',clave:'mensaje',valor:txt,pin});await Datos.cargar();cerrarModal();renderPreguntas();toast(txt?'Mensaje enviado.':'Mensaje quitado.')}
+  catch(e){toast(/pin/i.test(e.message)?'El PIN no es correcto.':/no permitido|desconocida/.test(e.message)?'Falta actualizar el código del servidor (ver INSTALAR.md).':'No se ha podido: '+e.message+'.')}
+}
+
+/* ---------- Mi meta: el premio que persigue, en la portada ---------- */
+function metaId(){
+  const a=Datos.ajustes||{},loc=ls.get('repaso.meta.v1',null);
+  if(loc&&(!a.metaFecha||loc.ts>a.metaFecha))return loc.id;
+  return a.meta||'';
+}
+function metaHTML(){
+  if(!Datos.resultados().length)return '';
+  const id=metaId(),p=premios().find(x=>String(x.id)===String(id)),L=calcularLogros();
+  if(!p)return '<button class="meta vacia" data-a="logrosPremios">'+ic('star')+'<span><b>Elige tu meta</b><small>¿Qué premio quieres conseguir? Márcalo en Logros</small></span>'+ic('arrow')+'</button>';
+  const pc=Math.max(0,Math.min(100,Math.floor(L.saldo/p.puntos*100))),falta=p.puntos-L.saldo;
+  return '<button class="meta" data-a="logrosPremios"><span class="meta-r"><span>'+ic('star')+'<b>Mi meta: '+esc(p.nombre)+'</b></span><span>'+pc+'%</span></span>'+
+    '<span class="meta-bar" aria-hidden="true"><i style="width:'+pc+'%"></i></span>'+
+    '<small>'+(falta>0?'Te faltan '+falta.toLocaleString('es-ES')+' puntos'+cuandoLlega(falta,L):'¡Ya tienes los puntos! Pídela en Logros')+'</small></button>';
+}
+function ponerMeta(el){
+  const id=el.dataset.id,ya=metaId()===id,nuevo=ya?'':id;
+  ls.set('repaso.meta.v1',{id:nuevo,ts:new Date().toISOString()});
+  servidorPost({accion:'ajuste',clave:'meta',valor:nuevo}).catch(()=>{});
+  renderLogros();const b=$('#premios');if(b)b.scrollIntoView({block:'start'});
+  toast(nuevo?'¡Meta elegida! La verás al abrir la app.':'Meta quitada.');
+}
+
+/* ---------- Cofre semanal ---------- */
+function cofreHTML(){
+  if(!Datos.resultados().length)return '';
+  const L=calcularLogros(),c=L.cofreSemana,visto=ls.get('repaso.cofres.v1',{})[c.w];
+  if(c.abierto&&!visto)return '<button class="cofre listo" data-a="abrirCofre">'+ic('gift')+'<span><b>¡Tienes un cofre por abrir!</b><small>Has completado '+COFRE.dias+' días esta semana</small></span>'+ic('arrow')+'</button>';
+  if(c.abierto)return '<p class="cofre-l">'+ic('gift')+'<span>Cofre de esta semana abierto: '+esc(c.premio.txt)+'</span></p>';
+  return '<p class="cofre-l">'+ic('gift')+'<span>Cofre de la semana: <b>'+Math.min(c.dias,COFRE.dias)+' de '+COFRE.dias+'</b> días entre semana</span></p>';
+}
+function abrirCofre(){
+  const L=calcularLogros(),c=L.cofreSemana;if(!c.abierto)return;
+  const v=ls.get('repaso.cofres.v1',{});v[c.w]=1;ls.set('repaso.cofres.v1',v);
+  abrirModal('<div class="felic"><div class="felic-fan" aria-hidden="true"><span class="med-c mc-'+(c.premio.dorado?'amarillo':'naranja')+'" style="--rot:0deg;--dy:0px;--d:0s">'+ic('gift')+'</span></div>'+
+    '<p class="eyebrow">Cofre de la semana</p><h2 id="mTit">'+esc(c.premio.dorado?'¡Cofre dorado!':'¡Cofre abierto!')+'</h2>'+
+    '<p class="pts-gan">+'+c.premio.pts+'<small>puntos · '+COFRE.dias+' días completados esta semana</small></p>'+
+    '<p class="felic-a">'+esc(pick(ANIMO))+'</p><button class="btn" data-a="cerrarInicio">¡Genial!</button></div>');
+}
+
+/* ---------- Ronda exprés: 5 preguntas para los días con prisa ---------- */
+function expresHTML(){
+  if(!Datos.todas().length)return '';
+  const L=calcularLogros(),salva=!L.hoyHecho&&!L.hoyLibre&&L.racha>0&&!L.expres.has(L.hoy);
+  return '<button class="expres" data-a="expres">'+ic('bolt')+'<span><b>Ronda exprés</b><small>'+EXPRES.n+' preguntas rápidas'+(salva?' · con '+EXPRES.ok+' aciertos, tu racha de hoy queda a salvo':'')+'</small></span>'+ic('arrow')+'</button>';
+}
+function empezarExpres(){
+  const Q=Datos.todas(),F=falladas(),vistas=new Set();
+  Datos.resultados().forEach(r=>(r.detalle||[]).forEach(d=>vistas.add(d.id)));
+  const orden=barajar(Q.filter(q=>F.has(q.id))).slice(0,2).concat(barajar(Q.filter(q=>!F.has(q.id)&&!vistas.has(q.id))),barajar(Q.filter(q=>!F.has(q.id)&&vistas.has(q.id))));
+  empezar(orden.slice(0,EXPRES.n));E.sesion.expres=true;
 }
 /* Prácticas rápidas en el inicio: 5 preguntas de ortografía o de problemas, con su reto del día */
 function practicasHTML(){
@@ -1260,6 +1355,8 @@ function logrosDe(nv,L){
   const out=[];
   if(nv.nivel)out.push({g:'tiempo',ic:'star',t:'¡Nuevo título: '+nv.nivel.nombre+'!',x:'Ya tienes '+L.puntos.toLocaleString('es-ES')+' XP. El siguiente es «'+nv.nivel.siguiente+'».',med:true});
   if(nv.tituloRacha)out.push({g:'racha',ic:'flame',t:'Tu racha ahora es '+nv.tituloRacha.nombre,x:plural(L.racha,'día seguido','días seguidos')+'. A los '+nv.tituloRacha.hasta+' será «'+nv.tituloRacha.siguiente+'».'});
+  if(nv.cofre)out.push({g:'dias',ic:'gift',t:'¡Cofre de la semana desbloqueado!',x:'Has completado '+COFRE.dias+' días entre semana. Ábrelo en la portada.',med:true});
+  if(nv.expresSalva)out.push({g:'racha',ic:'bolt',t:'Racha a salvo',x:'Con la ronda exprés tu racha de '+plural(nv.expresSalva,'día','días')+' no se corta hoy. Si completas el día, seguirá creciendo.'});
   if(nv.salvada)out.push({g:'racha',ic:'flame',t:'¡Racha salvada!',x:'Tu racha de '+plural(nv.salvada,'día','días')+' sigue viva. Ahora completa el día de hoy para que siga creciendo.'});
   if(nv.diaHecho)out.push({g:'dias',ic:'check',t:'¡Día completado!',x:L.racha>1?'Un día más de racha: llevas '+L.racha+' días seguidos.':'Hoy ya cuenta. Vuelve mañana para empezar tu racha.'});
   if(nv.record&&!nv.medallas.some(m=>m.grupo==='racha'))out.push({g:'racha',ic:'flame',t:'¡Nuevo récord!',x:'Tu mejor racha ahora es de '+plural(L.mejorRacha,'día','días')+'.'});
@@ -1308,7 +1405,7 @@ function verDia(el){
   const Lantes=calcularLogros(R.filter(r=>Date.parse(r.fecha)<f.getTime()),new Date(fin-1)),Ldesp=calcularLogros(R.filter(r=>Date.parse(r.fecha)<fin),new Date(fin-1));
   const nuevas=Ldesp.medallas.filter((m,i)=>m.veces>Lantes.medallas[i].veces);
   const medPts=Math.max(0,medDe(Ldesp)-medDe(Lantes));
-  const C=L.porDiaCat[k]||{},T=[['resp','Respuestas'],['dia','Día completado'],['retos','Retos del día'],['variedad','Variedad de asignaturas'],['subir','Subir tests'],['estreno','Tema estrenado']];
+  const C=L.porDiaCat[k]||{},T=[['resp','Respuestas'],['dia','Día completado'],['retos','Retos del día'],['variedad','Variedad de asignaturas'],['subir','Subir tests'],['estreno','Tema estrenado'],['cofre','Cofre de la semana']];
   const total=Math.round(L.porDia[k]||0)+medPts;
   const estado=x&&x.hecho?ic('check')+'Día completado':L.salvados.has(k)?ic('flame')+'Racha salvada con problemas':ic('calendar')+'Jugado, sin completar';
   const rondas=(L.rondasDia[k]||[]).map(({r,g})=>{
@@ -1331,9 +1428,9 @@ function calendario(L){
   for(let i=0;i<hueco;i++)celdas+='<span class="cal-d vacio"></span>';
   let hechosMes=0;
   for(let d=1;d<=dias;d++){
-    const k=diaClave(new Date(y,m,d)),x=L.dias[k],salv=L.salvados.has(k),cls=x&&x.hecho?' hecho':salv?' salvado':x?' jugado':'';
+    const k=diaClave(new Date(y,m,d)),x=L.dias[k],salv=L.salvados.has(k)||L.expres.has(k),cls=x&&x.hecho?' hecho':salv?' salvado':x?' jugado':'';
     if(x&&x.hecho)hechosMes++;
-    const est=x&&x.hecho?'día completado':salv?'racha salvada con problemas':x?'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)':'';
+    const est=x&&x.hecho?'día completado':L.expres.has(k)?'racha a salvo con la ronda exprés':salv?'racha salvada con problemas':x?'jugado, no completado ('+x.n+' preguntas, '+x.ok+' aciertos)':'';
     const lbl=d+' de '+MESES[m]+(k===L.hoy?', hoy':'')+(est?', '+est:'');
     celdas+=(x||salv)?'<button class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" data-a="verDia" data-k="'+k+'" aria-label="'+lbl+'. Ver los puntos de ese día">'+d+'</button>':
       '<span class="cal-d'+cls+(k===L.hoy?' es-hoy':'')+'" role="img" aria-label="'+lbl+'">'+d+'</span>';
@@ -1379,13 +1476,14 @@ function premiosHTML(L){
   h+='<p class="res-t">Elige un premio</p><div>'+premios().map(p=>{
     const esGran=gran&&p.id===gran.id,cerrado=esGran&&L.diasHechos<V3.granDias,cc=esGran?' gran':'';
     const candado=esGran?'<small class="gran-d">'+(cerrado?'Gran premio de temporada: se desbloquea con '+V3.granDias+' días completados · llevas '+L.diasHechos:'Gran premio de temporada · desbloqueado')+'</small>':'';
-    const falta=p.puntos-L.saldo;
+    const falta=p.puntos-L.saldo,esMeta=String(metaId())===String(p.id);
+    const estrella='<button class="meta-b'+(esMeta?' on':'')+'" data-a="ponerMeta" data-id="'+esc(p.id)+'" aria-pressed="'+esMeta+'" aria-label="'+(esMeta?'Quitar como meta':'Elegir como mi meta')+'">'+ic('star')+'<span>'+(esMeta?'Mi meta':'Meta')+'</span></button>';
     if(falta<=0&&cerrado)return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+ic('check')+'</span></div>'+
       '<small>Ya tienes los puntos ('+(+p.puntos).toLocaleString('es-ES')+')</small>'+candado+'</div></div>';
     if(falta<=0)return '<div class="ses premio'+cc+'"><span>'+esc(p.nombre)+'<small>'+(+p.puntos).toLocaleString('es-ES')+' puntos</small></span>'+
-      '<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button>'+(esGran?candado:'')+'</div>';
+      '<span class="premio-acts">'+estrella+'<button class="btn sec mini" data-a="canjear" data-id="'+esc(p.id)+'">Canjear</button></span>'+(esGran?candado:'')+'</div>';
     const pc=Math.max(0,Math.min(99,Math.floor(L.saldo/p.puntos*100)));
-    return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span>'+pc+'%</span></div>'+
+    return '<div class="ses premio lejos'+cc+'"><div class="premio-c"><div class="r"><span>'+esc(p.nombre)+'</span><span class="premio-pc">'+estrella+pc+'%</span></div>'+
       '<div class="linea" aria-hidden="true"><i style="width:'+pc+'%"></i></div>'+
       '<small>'+Math.max(0,L.saldo).toLocaleString('es-ES')+' de '+(+p.puntos).toLocaleString('es-ES')+' · te faltan '+falta.toLocaleString('es-ES')+cuandoLlega(falta,L)+'</small>'+candado+'</div></div>';
   }).join('')+'</div>';
@@ -1418,6 +1516,8 @@ function renderLogros(){
       '<li>Por subir un test: el 1.º del día <b>'+V3.subir[0]+'</b>, el 2.º <b>'+V3.subir[1]+'</b> y los demás <b>'+V3.subir[2]+'</b>. Valor completo con '+V3.subirLleno+' preguntas nuevas o más; si trae menos, la parte proporcional</li>'+
       '<li><b>+'+SUBIR.estreno+'</b> cuando repasas un tema que has subido tú ('+SUBIR.estrenoN+' respuestas con '+SUBIR.estrenoOk+' aciertos)</li>'+
       (PRACTICAS.some(p=>preguntasDePractica(p.id).length)?'<li><b>+'+RETO.pts+'</b> por cada reto diario: '+PRACTICAS.filter(p=>preguntasDePractica(p.id).length).map(p=>p.reto+' aciertos de '+p.nombre.toLowerCase()).join(' o ')+' en el día</li>':'')+
+      '<li><b>Ronda exprés</b> (5 preguntas): entre semana, con 4 aciertos tu racha no se corta ese día (dos veces por semana)</li>'+
+      '<li><b>Cofre semanal</b>: completa 4 días entre semana y abre un cofre con puntos sorpresa</li>'+
       '<li>Sábados y domingos son <b>días libres</b>: si no juegas, la racha no se pierde; si completas el día, <b>+'+FINDE_EXTRA+'</b> extra</li>'+
       '<li>Si un día no lo completas, al día siguiente puedes <b>salvar la racha</b> acertando '+RESCATE.n+' problemas (una vez por semana)</li>'+
       '<li>Cada medalla da puntos extra</li></ul></details>';
@@ -1503,6 +1603,7 @@ function renderPreguntas(){
     '<button class="lbtn" data-a="nombres">'+ic('list')+'<span>Cursos, asignaturas y temas<small>'+(repes?'<span class="e">'+plural(repes,'nombre parece repetido','nombres parecen repetidos')+'</span> · ':'')+'Unir nombres escritos de dos formas</small></span></button>'+
     '<button class="lbtn" data-a="exportarTodo">'+ic('download')+'<span>Descargar todas las preguntas<small>Copia de seguridad en un archivo XML</small></span></button>'+
     '<button class="lbtn" data-a="plantilla">'+ic('download')+'<span>Descargar plantilla XML<small>Ejemplo del formato</small></span></button>'+
+    '<button class="lbtn" data-a="escribirMensaje">'+ic('chat')+'<span>Dejar un mensaje a Pepa<small>'+((Datos.ajustes||{}).mensaje?'Ahora: «'+esc(norm(Datos.ajustes.mensaje).slice(0,40))+'»':'Le saldrá al abrir la app')+'</small></span></button>'+
     '<button class="lbtn" data-a="reinicio">'+ic('refresh')+'<span>Empezar de cero los puntos<small>'+
       (Datos.inicio?'Cuentan desde el '+fecha(Datos.inicio)+' · se puede deshacer':'Quita las rondas de prueba: puntos, racha y medallas')+'</small></span></button>'+
     '<button class="lbtn" data-a="exportarRes">'+ic('download')+'<span>Descargar resultados<small>Todas las rondas en un archivo</small></span></button>'+
@@ -2157,7 +2258,11 @@ const A={
   inicio:()=>ir('inicio'),progreso:()=>ir('progreso'),logros:()=>{cerrarModal();E.mes=0;ir('logros')},
   mesAnt:()=>{E.mes--;renderLogros();const b=$('[data-a=mesAnt]');if(b)b.focus()},
   mesSig:()=>{if(E.mes<0)E.mes++;renderLogros();const b=$('[data-a='+(E.mes<0?'mesSig':'mesAnt')+']');if(b)b.focus()},
-  verDia,canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,
+  verDia,ponerMeta,abrirCofre,escribirMensaje,guardarMensaje,
+  expres:()=>empezarExpres(),
+  leerMensaje:()=>{ls.set('repaso.msgLeido.v1',(Datos.ajustes||{}).mensajeFecha||'');renderInicio()},
+  logrosPremios:()=>{E.mes=0;ir('logros');const b=$('#premios');if(b)b.scrollIntoView({block:'start'})},
+  canjear,confirmarCanje,resolverCanje,reinicio,hacerReinicio,
   avisarError,enviarAviso,corregirAviso,resolverAviso,avisos:()=>ir('avisos'),preguntas:()=>ir('preguntas'),importar:()=>ir('importar'),
   editor:()=>ir('editor'),
   editorNuevo:()=>{if(!E.ed||!tieneContenido()||E.ed.subidaId)E.ed=edNuevo();ir('editor')},

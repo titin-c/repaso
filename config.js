@@ -19,5 +19,6 @@ window.REPEPASO_CONFIG={
   carpeta:'preguntas',
   puntosNuevosDesde:'2026-10-10',
   puntosV3Desde:'2026-10-13',   /* reglas de puntos v3 (7/8/3/1, subidas por test, gran premio con 100 días); lo anterior se respeta */
+  cofreDesde:'2026-10-19',      /* cofre semanal: cuenta desde la semana de esta fecha */
   meta:{preguntas:15,aciertos:11}
 };
