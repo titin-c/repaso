@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='25';
+const VERSION='26';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -38,7 +38,7 @@ function descargar(contenido,nombre,tipo){
 function aviso(tipo,html){return '<div class="aviso '+tipo+'" role="status">'+ic(tipo==='err'?'alert':'info')+'<div>'+html+'</div></div>'}
 const unicosOrden=a=>a.filter((x,i)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);
 /* Texto de la respuesta correcta, sea de opciones o escrita */
-const correctaDe=q=>q.tipo==='mapa'?nombreMapa(q.mapa.capa,q.mapa.tocar):q.tipo==='escrita'?(q.respuestas||[])[0]||'':q.opciones[q.correcta];
+const correctaDe=q=>q.tipo==='mapa'?nombreMapa(q.mapa.capa,q.mapa.tocar,q.mapa.idioma):q.tipo==='escrita'?(q.respuestas||[])[0]||'':q.opciones[q.correcta];
 
 /* ---------- respuesta escrita: ¿lo que ha escrito vale? ----------
    No cuentan mayúsculas, espacios, signos ni artículos («la yegua» = «yegua»).
@@ -386,21 +386,27 @@ function idsMapa(capa,v){
   return out;
 }
 function grupoIgual(capa,ids){const C=CAPAS[capa];return C?(C.c.g||[]).find(g=>g.ids.length===ids.length&&g.ids.every(x=>ids.indexOf(x)>=0)):null}
-function nombreMapa(capa,ids){
-  ids=ids||[];const g=grupoIgual(capa,ids);if(g)return g.n;
-  const n=ids.map(id=>(rasgoDe(capa,id)||{}).n||id);
-  return n.length>1?n.slice(0,-1).join(', ')+' y '+n[n.length-1]:n[0]||'';
+/* idioma="va": nombres en valenciano (si el mapa los tiene) */
+const IDIOMAS={va:'va',valencia:'va',valencian:'va',valenciano:'va',ca:'va',catala:'va',catalan:'va'};
+const idiomaDe=v=>IDIOMAS[idMapa(v||'').replace(/-/g,'')]||'';
+const nomR=(f,l)=>l==='va'&&f.va?f.va:f.n;
+const altR=(f,l)=>l==='va'&&f.va?(f.va_alt||[]):(f.alt||[]);
+function nombreMapa(capa,ids,l){
+  ids=ids||[];const g=grupoIgual(capa,ids);if(g)return nomR(g,l);
+  const n=ids.map(id=>{const f=rasgoDe(capa,id);return f?nomR(f,l):id});
+  return n.length>1?n.slice(0,-1).join(', ')+(l==='va'?' i ':' y ')+n[n.length-1]:n[0]||'';
 }
-function formasMapa(capa,ids){const g=grupoIgual(capa,ids);if(g)return [g.n].concat(g.alt||[]);if(ids.length!==1)return [];const f=rasgoDe(capa,ids[0]);return f?[f.n].concat(f.alt||[]):[]}
+function formasMapa(capa,ids,l){const g=grupoIgual(capa,ids);if(g)return [nomR(g,l)].concat(altR(g,l));if(ids.length!==1)return [];const f=rasgoDe(capa,ids[0]);return f?[nomR(f,l)].concat(altR(f,l)):[]}
 const TIPO_RASGO={cordillera:'sistemas montañosos',llanura:'llanuras y depresiones',pico:'picos'};
 /* «¿Qué es esto?» sin opciones escritas: la correcta y 3 del mismo tipo (siempre las mismas para esa pregunta) */
 function completarMapa(q){
   const M=q.mapa;if(!M||!CAPAS[M.capa])return q;
-  if(q.tipo==='escrita'){if(!(q.respuestas||[]).some(r=>norm(r))&&M.marca.length)q.respuestas=formasMapa(M.capa,M.marca);return q}
+  const l=M.idioma||'';
+  if(q.tipo==='escrita'){if(!(q.respuestas||[]).some(r=>norm(r))&&M.marca.length)q.respuestas=formasMapa(M.capa,M.marca,l);return q}
   if(q.tipo==='mapa'||!M.marca.length||(q.opciones||[]).some(o=>norm(o)))return q;
   const C=CAPAS[M.capa].c,f0=rasgoDe(M.capa,M.marca[0]);if(!f0)return q;
-  const bueno=nombreMapa(M.capa,M.marca),sem=hashN(M.marca.join(' ')+'|'+norm(q.enunciado));
-  const otros=C.f.filter(f=>f.t===f0.t&&M.marca.indexOf(f.id)<0).map(f=>f.n).concat(C.g?C.g.filter(g=>g.n!==bueno&&!g.ids.some(x=>M.marca.indexOf(x)>=0)&&rasgoDe(M.capa,g.ids[0]).t===f0.t).map(g=>g.n):[]);
+  const bueno=nombreMapa(M.capa,M.marca,l),sem=hashN(M.marca.join(' ')+'|'+norm(q.enunciado));
+  const otros=C.f.filter(f=>f.t===f0.t&&M.marca.indexOf(f.id)<0).map(f=>nomR(f,l)).concat(C.g?C.g.filter(g=>nomR(g,l)!==bueno&&!g.ids.some(x=>M.marca.indexOf(x)>=0)&&rasgoDe(M.capa,g.ids[0]).t===f0.t).map(g=>nomR(g,l)):[]);
   otros.sort((a,b)=>hashN(a+sem)-hashN(b+sem));
   q.opciones=[bueno].concat(otros.slice(0,3));q.correcta=0;q.nCorrectas=1;q.tipo='opciones';
   return q;
@@ -432,9 +438,10 @@ function mapaHTML(q,est){
   ['llanura','cordillera'].forEach(t=>F.filter(f=>f.t===t).forEach(f=>{h+='<path class="'+cl(f)+'" d="'+dRasgo(f)+'"/>'}));
   F.filter(f=>f.t==='pico').forEach(f=>{h+='<path class="'+cl(f)+'" d="M'+f.x+' '+(f.y-12)+'l10 17h-20z"/>'});
   if(fin){
-    const ver=tc.slice();if(est.sel&&ver.indexOf(est.sel)<0)ver.push(est.sel);
-    ver.forEach(id=>{const f=rasgoDe(M.capa,id);if(!f)return;const c=centroRasgo(f);
-      h+='<text class="mp-lbl'+(tc.indexOf(id)<0?' ko':'')+'" x="'+c[0].toFixed(0)+'" y="'+c[1].toFixed(0)+'" text-anchor="middle">'+esc(f.n)+'</text>'});
+    /* si lo que había que tocar es un grupo (Meseta, Sistemas Béticos), una sola etiqueta con su nombre */
+    const g=grupoIgual(M.capa,tc),ver=g?[tc[0]]:tc.slice();if(est.sel&&tc.indexOf(est.sel)<0)ver.push(est.sel);
+    ver.forEach(id=>{const f=rasgoDe(M.capa,id);if(!f)return;const c=centroRasgo(f),nom=g&&id===tc[0]?nomR(g,M.idioma):nomR(f,M.idioma);
+      h+='<text class="mp-lbl'+(tc.indexOf(id)<0?' ko':'')+'" x="'+c[0].toFixed(0)+'" y="'+c[1].toFixed(0)+'" text-anchor="middle">'+esc(nom)+'</text>'});
   }
   return '<div class="mapa'+(q.tipo==='mapa'&&!fin&&!est.peq?' tocable':'')+(est.peq?' peq':'')+'"'+(est.peq?'':' id="mapa"')+'>'+h+'</svg></div>';
 }
@@ -473,6 +480,7 @@ function leerPregunta(n){
   if(mp){
     const capa=idMapa(mp.getAttribute('capa')||'');
     q.mapa={capa,marca:idsMapa(capa,mp.getAttribute('marca')),tocar:idsMapa(capa,mp.getAttribute('tocar'))};
+    const idi=idiomaDe(mp.getAttribute('idioma')||heredar(n,'idioma'));if(idi)q.mapa.idioma=idi;
     if(q.mapa.tocar.length&&!escrita&&!ops.length){q.tipo='mapa';q.opciones=[];q.correcta=-1;q.nCorrectas=0}
     completarMapa(q);
   }else if(/^mapa/i.test(n.getAttribute('tipo')||'')&&!escrita&&!ops.length){q.tipo='mapa';q.opciones=[];q.correcta=-1}
@@ -493,7 +501,7 @@ function errorDe(q){
   if(q.correcta<0||!norm(q.opciones[q.correcta]))return 'no tiene marcada la respuesta correcta';
   return '';
 }
-const mapaLimpio=q=>q.mapa&&q.mapa.capa?{mapa:{capa:q.mapa.capa,marca:(q.mapa.marca||[]).slice(),tocar:(q.mapa.tocar||[]).slice()}}:{};
+const mapaLimpio=q=>q.mapa&&q.mapa.capa?{mapa:Object.assign({capa:q.mapa.capa,marca:(q.mapa.marca||[]).slice(),tocar:(q.mapa.tocar||[]).slice()},q.mapa.idioma?{idioma:q.mapa.idioma}:{})}:{};
 function limpiar(q){return Object.assign(limpiar0(q),mapaLimpio(q))}
 function limpiar0(q){
   if(q.tipo==='mapa')return {id:q.id,idAuto:!!q.idAuto,tipo:'mapa',curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),opciones:[],correcta:-1,explicacion:norm(q.explicacion)};
@@ -527,7 +535,7 @@ function aXML(P,sinPuntos){
       Object.keys(arbol[c][a]).forEach(t=>{
         out.push('      <tema nombre="'+x(t)+'">');
         arbol[c][a][t].forEach(q=>{
-          const mx=q.mapa?'          <mapa capa="'+x(q.mapa.capa)+'"'+(q.mapa.marca.length?' marca="'+x(q.mapa.marca.join(' '))+'"':'')+(q.mapa.tocar.length?' tocar="'+x(q.mapa.tocar.join(' '))+'"':'')+'/>':'';
+          const mx=q.mapa?'          <mapa capa="'+x(q.mapa.capa)+'"'+(q.mapa.marca.length?' marca="'+x(q.mapa.marca.join(' '))+'"':'')+(q.mapa.tocar.length?' tocar="'+x(q.mapa.tocar.join(' '))+'"':'')+(q.mapa.idioma?' idioma="'+x(q.mapa.idioma)+'"':'')+'/>':'';
           if(q.tipo==='mapa'){
             out.push('        <pregunta id="'+x(q.id)+'" tipo="mapa">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
           }else if(esVF(q)){
@@ -823,7 +831,7 @@ function responderMapa(){
   const ok=q.mapa.tocar.indexOf(s.mapaSel)>=0;s.resp[s.i]={toque:s.mapaSel,ok};
   $('#mapa').outerHTML=mapaHTML(q,{sel:s.mapaSel,fin:true});
   $('#mapaOk').remove();$('#mapaHint').remove();
-  feedback(s,q,ok,'',nombreMapa(q.mapa.capa,[s.mapaSel]));
+  feedback(s,q,ok,'',nombreMapa(q.mapa.capa,[s.mapaSel],q.mapa.idioma));
 }
 const BIEN=['¡Correcto!','¡Muy bien!','¡Eso es!','¡Perfecto!','¡Genial!'];
 function responder(oi){
@@ -880,7 +888,7 @@ function avisarError(){
   const s=E.sesion;if(!s)return;
   if(!(s.resp[s.i]||{}).ok&&avisosHoy()>=AVISOS_DIA){const c=$('#avisoErr');if(c)c.innerHTML='<p class="fb-nota aviso-ok">'+ic('info')+'<span>Hoy ya has avisado de '+AVISOS_DIA+' preguntas. Si crees que esta también está mal, díselo a papá o mamá.</span></p>';return}
   const it=s.preguntas[s.i],q=it.q,r=s.resp[s.i]||{};
-  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque]):(r.elegida!=null?q.opciones[r.elegida]:'');
+  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque],q.mapa.idioma):(r.elegida!=null?q.opciones[r.elegida]:'');
   const caja=$('#avisoErr');
   /* primero le pide (opcional) que cuente qué está mal; el aviso se envía al pulsar «Enviar aviso» */
   if(caja&&!caja.querySelector('#avisoTxt')){
@@ -893,7 +901,7 @@ function avisarError(){
 function enviarAviso(){
   const s=E.sesion;if(!s)return;
   const q=s.preguntas[s.i].q,r=s.resp[s.i]||{};
-  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque]):(r.elegida!=null?q.opciones[r.elegida]:'');
+  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque],q.mapa.idioma):(r.elegida!=null?q.opciones[r.elegida]:'');
   const comentario=norm(($('#avisoTxt')||{}).value).slice(0,300);
   r.aviso=true;
   const caja=$('#avisoErr');
@@ -1776,6 +1784,7 @@ function promptTexto(){
       '  2) Escribir el nombre: tipo="escrita" en la <pregunta>, <mapa capa="…" marca="id"/> y en <respuesta> el nombre (si no pones <respuesta>, vale el nombre del mapa).\n'+
       '  3) Señalar en el mapa: tipo="mapa" en la <pregunta>, sin opciones ni respuesta, y <mapa capa="…" tocar="id"/>. El enunciado dice qué hay que tocar.\n'+
       'Usa SOLO estos mapas y estos id (no inventes otros):\n'+lista+'\n'+
+      'Si las preguntas son en valenciano, añade idioma="va" a cada <mapa>: así los nombres del mapa salen en valenciano.\n'+
       'Mezcla las tres formas. Haz también preguntas de test sin mapa sobre el mismo tema (alturas, qué separa a qué, dónde está cada uno).');
     ejemplo.push('        <pregunta tipo="mapa">','          <enunciado>Toca en el mapa el Sistema Central</enunciado>','          <mapa capa="relieve" tocar="sistema-central"/>',
       '          <explicacion>El Sistema Central cruza la Meseta de oeste a este y la divide en Submeseta Norte y Submeseta Sur.</explicacion>','        </pregunta>');
@@ -2212,7 +2221,7 @@ function qHTML(q,i){
   const k0=(a,extra)=>' data-ed="'+a+'" data-q="'+i+'"'+(extra||'');
   let resp;
   if(q.tipo==='mapa'){
-    resp='<p class="hint">Se responde tocando en el mapa'+(q.mapa&&q.mapa.tocar.length?': tiene que tocar <b>'+esc(nombreMapa(q.mapa.capa,q.mapa.tocar))+'</b>':'')+'.</p>';
+    resp='<p class="hint">Se responde tocando en el mapa'+(q.mapa&&q.mapa.tocar.length?': tiene que tocar <b>'+esc(nombreMapa(q.mapa.capa,q.mapa.tocar,q.mapa.idioma))+'</b>':'')+'.</p>';
   }else if(q.tipo==='escrita'){
     const rs=q.respuestas&&q.respuestas.length?q.respuestas:[''];
     resp=rs.map((r,k)=>'<div class="oprow"><input class="in" data-q="'+i+'" data-r="'+k+'" value="'+esc(r)+'" placeholder="'+(k?'Otra forma válida (opcional)':'Respuesta correcta')+'" aria-label="Pregunta '+(i+1)+', respuesta válida '+(k+1)+'" autocapitalize="off" autocorrect="off" spellcheck="false">'+

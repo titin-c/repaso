@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<banco>
+  <curso nombre="1º ESO">
+    <asignatura nombre="Geografia i Història">
+      <tema nombre="El relleu de la península Ibèrica">
+
+        <!-- 1 · Assenyalar en el mapa -->
+        <pregunta id="rva-t01" tipo="mapa">
+          <enunciado>Toca en el mapa els Pirineus</enunciado>
+          <mapa capa="relieve" tocar="pirineos" idioma="va"/>
+          <explicacion>Els Pirineus van des del golf de Biscaia fins a la mar Mediterrània i fan de frontera natural amb França. Estan fora de la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t02" tipo="mapa">
+          <enunciado>Toca en el mapa el Sistema Ibèric</enunciado>
+          <mapa capa="relieve" tocar="sistema-iberico" idioma="va"/>
+          <explicacion>El Sistema Ibèric tanca la Meseta per l'est. Va des de La Rioja fins al nord de la Comunitat Valenciana, on hi ha el Penyagolosa.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t03" tipo="mapa">
+          <enunciado>Toca en el mapa Serra Morena</enunciado>
+          <mapa capa="relieve" tocar="sierra-morena" idioma="va"/>
+          <explicacion>Serra Morena tanca la Meseta pel sud i la separa de la depressió del Guadalquivir.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t04" tipo="mapa">
+          <enunciado>Toca en el mapa els Sistemes Bètics (val qualsevol de les dues serralades)</enunciado>
+          <mapa capa="relieve" tocar="sistemas-beticos" idioma="va"/>
+          <explicacion>Els Sistemes Bètics són al sud i al sud-est. Tenen dues serralades: la Subbètica, més a l'interior, i la Penibètica, al costat de la costa, on hi ha Sierra Nevada.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t05" tipo="mapa">
+          <enunciado>Toca en el mapa els Monts de Toledo</enunciado>
+          <mapa capa="relieve" tocar="montes-de-toledo" idioma="va"/>
+          <explicacion>Els Monts de Toledo són dins de la Meseta Central, al sud del Sistema Central. Són muntanyes antigues i baixes, molt desgastades per l'erosió.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t06" tipo="mapa">
+          <enunciado>Toca en el mapa la Meseta Central</enunciado>
+          <mapa capa="relieve" tocar="meseta-central" idioma="va"/>
+          <explicacion>La Meseta Central és una gran planura alta al centre de la península. El Sistema Central la divideix en dues parts: la Submeseta Nord i la Submeseta Sud.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t07" tipo="mapa">
+          <enunciado>Toca en el mapa el Sistema Central</enunciado>
+          <mapa capa="relieve" tocar="sistema-central" idioma="va"/>
+          <explicacion>El Sistema Central travessa la Meseta d'oest a est i la divideix en dues submesetes. Ací hi ha les serres de Gredos i de Guadarrama.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t08" tipo="mapa">
+          <enunciado>Toca en el mapa el Massís Galaicoportuguès</enunciado>
+          <mapa capa="relieve" tocar="macizo-galaico" idioma="va"/>
+          <explicacion>El Massís Galaicoportuguès és al nord-oest, entre Galícia i el nord de Portugal. És un dels relleus més antics de la península; per això les seues muntanyes són baixes i arredonides.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t09" tipo="mapa">
+          <enunciado>Toca en el mapa la Serralada Cantàbrica</enunciado>
+          <mapa capa="relieve" tocar="cordillera-cantabrica" idioma="va"/>
+          <explicacion>La Serralada Cantàbrica va paral·lela a la costa de la mar Cantàbrica i tanca la Meseta pel nord. Ací hi ha els Picos de Europa.</explicacion>
+        </pregunta>
+        <pregunta id="rva-t10" tipo="mapa">
+          <enunciado>Toca en el mapa les Muntanyes Basques</enunciado>
+          <mapa capa="relieve" tocar="montes-vascos" idioma="va"/>
+          <explicacion>Les Muntanyes Basques són al nord, al País Basc, i uneixen la Serralada Cantàbrica amb els Pirineus.</explicacion>
+        </pregunta>
+
+        <!-- 2 · Què és açò? -->
+        <pregunta id="rva-q01">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="pirineos" idioma="va"/>
+          <opcion correcta="si">Pirineus</opcion>
+          <opcion>Serralada Cantàbrica</opcion>
+          <opcion>Muntanyes Basques</opcion>
+          <opcion>Sistema Ibèric</opcion>
+          <explicacion>Són els Pirineus: van d'oest a est entre la península i França.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q02">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sistema-iberico" idioma="va"/>
+          <opcion correcta="si">Sistema Ibèric</opcion>
+          <opcion>Sistema Central</opcion>
+          <opcion>Sistemes Bètics</opcion>
+          <opcion>Serra Morena</opcion>
+          <explicacion>És el Sistema Ibèric: va del nord-oest al sud-est i tanca la Meseta per l'est.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q03">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sierra-morena" idioma="va"/>
+          <opcion correcta="si">Serra Morena</opcion>
+          <opcion>Monts de Toledo</opcion>
+          <opcion>Sistemes Bètics</opcion>
+          <opcion>Sistema Central</opcion>
+          <explicacion>És Serra Morena, el límit sud de la Meseta. No la confongues amb els Monts de Toledo, que són més al nord, dins de la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q04">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sistemas-beticos" idioma="va"/>
+          <opcion correcta="si">Sistemes Bètics</opcion>
+          <opcion>Serra Morena</opcion>
+          <opcion>Sistema Ibèric</opcion>
+          <opcion>Pirineus</opcion>
+          <explicacion>Són els Sistemes Bètics, amb les seues dues serralades (Subbètica i Penibètica), al sud i al sud-est de la península.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q05">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="montes-de-toledo" idioma="va"/>
+          <opcion correcta="si">Monts de Toledo</opcion>
+          <opcion>Serra Morena</opcion>
+          <opcion>Sistema Central</opcion>
+          <opcion>Sistema Ibèric</opcion>
+          <explicacion>Són els Monts de Toledo, dins de la Meseta Central, entre el Sistema Central i Serra Morena.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q06">
+          <enunciado>Quina unitat de relleu està marcada en el mapa?</enunciado>
+          <mapa capa="relieve" marca="meseta-central" idioma="va"/>
+          <opcion correcta="si">Meseta Central</opcion>
+          <opcion>Sistema Central</opcion>
+          <opcion>Monts de Toledo</opcion>
+          <opcion>Sistema Ibèric</opcion>
+          <explicacion>És la Meseta Central, la gran planura alta del centre de la península, envoltada de muntanyes.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q07">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sistema-central" idioma="va"/>
+          <opcion correcta="si">Sistema Central</opcion>
+          <opcion>Monts de Toledo</opcion>
+          <opcion>Serralada Cantàbrica</opcion>
+          <opcion>Serra Morena</opcion>
+          <explicacion>És el Sistema Central: creua la Meseta d'oest a est i la divideix en dues submesetes.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q08">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="macizo-galaico" idioma="va"/>
+          <opcion correcta="si">Massís Galaicoportuguès</opcion>
+          <opcion>Serralada Cantàbrica</opcion>
+          <opcion>Muntanyes Basques</opcion>
+          <opcion>Sistema Central</opcion>
+          <explicacion>És el Massís Galaicoportuguès, al nord-oest, entre Galícia i el nord de Portugal.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q09">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="cordillera-cantabrica" idioma="va"/>
+          <opcion correcta="si">Serralada Cantàbrica</opcion>
+          <opcion>Pirineus</opcion>
+          <opcion>Muntanyes Basques</opcion>
+          <opcion>Massís Galaicoportuguès</opcion>
+          <explicacion>És la Serralada Cantàbrica, al costat de la mar Cantàbrica. Tanca la Meseta pel nord.</explicacion>
+        </pregunta>
+        <pregunta id="rva-q10">
+          <enunciado>Quin sistema muntanyós està marcat en el mapa?</enunciado>
+          <mapa capa="relieve" marca="montes-vascos" idioma="va"/>
+          <opcion correcta="si">Muntanyes Basques</opcion>
+          <opcion>Pirineus</opcion>
+          <opcion>Serralada Cantàbrica</opcion>
+          <opcion>Sistema Ibèric</opcion>
+          <explicacion>Són les Muntanyes Basques, el pont entre la Serralada Cantàbrica (a l'oest) i els Pirineus (a l'est).</explicacion>
+        </pregunta>
+
+        <!-- 3 · Escriu el nom -->
+        <pregunta id="rva-e01" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="pirineos" idioma="va"/>
+          <respuesta>Pirineus</respuesta>
+          <respuesta>Pirineu</respuesta>
+          <explicacion>Són els Pirineus, la frontera natural amb França.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e02" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="sistema-iberico" idioma="va"/>
+          <respuesta>Sistema Ibèric</respuesta>
+          <respuesta>Ibèric</respuesta>
+          <explicacion>És el Sistema Ibèric. S'escriu amb accent obert: Ibèric.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e03" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="sierra-morena" idioma="va"/>
+          <respuesta>Serra Morena</respuesta>
+          <respuesta>Morena</respuesta>
+          <explicacion>És Serra Morena. En valencià és «serra», no «sierra».</explicacion>
+        </pregunta>
+        <pregunta id="rva-e04" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="sistemas-beticos" idioma="va"/>
+          <respuesta>Sistemes Bètics</respuesta>
+          <respuesta>Serralades Bètiques</respuesta>
+          <respuesta>Sistema Bètic</respuesta>
+          <respuesta>Serralada Bètica</respuesta>
+          <explicacion>Són els Sistemes Bètics (o serralades Bètiques), al sud i al sud-est.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e05" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="montes-de-toledo" idioma="va"/>
+          <respuesta>Monts de Toledo</respuesta>
+          <respuesta>Muntanyes de Toledo</respuesta>
+          <explicacion>Són els Monts de Toledo, dins de la Meseta, al sud del Sistema Central.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e06" tipo="escrita">
+          <enunciado>Escriu el nom de la unitat de relleu marcada</enunciado>
+          <mapa capa="relieve" marca="meseta-central" idioma="va"/>
+          <respuesta>Meseta Central</respuesta>
+          <respuesta>Meseta</respuesta>
+          <explicacion>És la Meseta Central, al centre de la península.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e07" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="sistema-central" idioma="va"/>
+          <respuesta>Sistema Central</respuesta>
+          <explicacion>És el Sistema Central, que divideix la Meseta en Submeseta Nord i Submeseta Sud.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e08" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="macizo-galaico" idioma="va"/>
+          <respuesta>Massís Galaicoportuguès</respuesta>
+          <respuesta>Massís Galaic</respuesta>
+          <respuesta>Galaicoportuguès</respuesta>
+          <explicacion>És el Massís Galaicoportuguès: «galaic» per Galícia i «portuguès» per Portugal.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e09" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="cordillera-cantabrica" idioma="va"/>
+          <respuesta>Serralada Cantàbrica</respuesta>
+          <respuesta>Cantàbrica</respuesta>
+          <explicacion>És la Serralada Cantàbrica. En valencià és «serralada» i «Cantàbrica» porta accent obert.</explicacion>
+        </pregunta>
+        <pregunta id="rva-e10" tipo="escrita">
+          <enunciado>Escriu el nom del sistema muntanyós marcat</enunciado>
+          <mapa capa="relieve" marca="montes-vascos" idioma="va"/>
+          <respuesta>Muntanyes Basques</respuesta>
+          <respuesta>Monts Bascos</respuesta>
+          <explicacion>Són les Muntanyes Basques, entre la Serralada Cantàbrica i els Pirineus.</explicacion>
+        </pregunta>
+
+        <!-- 4 · Sense mapa -->
+        <pregunta id="rva-p01">
+          <enunciado>Quin sistema muntanyós divideix la Meseta Central en dues submesetes?</enunciado>
+          <opcion correcta="si">El Sistema Central</opcion>
+          <opcion>Els Monts de Toledo</opcion>
+          <opcion>El Sistema Ibèric</opcion>
+          <opcion>Serra Morena</opcion>
+          <explicacion>El Sistema Central travessa la Meseta d'oest a est. Els Monts de Toledo també són dins de la Meseta, però només a la part sud.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p02">
+          <enunciado>On són els Monts de Toledo?</enunciado>
+          <opcion correcta="si">Dins de la Meseta, al sud del Sistema Central</opcion>
+          <opcion>Dins de la Meseta, al nord del Sistema Central</opcion>
+          <opcion>Entre la península i França</opcion>
+          <opcion>Al costat de la costa mediterrània</opcion>
+          <explicacion>Els Monts de Toledo són a la Submeseta Sud, entre el Sistema Central i Serra Morena.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p03">
+          <enunciado>Quin sistema muntanyós fa de frontera natural amb França?</enunciado>
+          <opcion correcta="si">Els Pirineus</opcion>
+          <opcion>Les Muntanyes Basques</opcion>
+          <opcion>La Serralada Cantàbrica</opcion>
+          <opcion>El Sistema Ibèric</opcion>
+          <explicacion>Els Pirineus separen la península de França. Les Muntanyes Basques són al costat, però no fan de frontera.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p04">
+          <enunciado>Quines muntanyes uneixen la Serralada Cantàbrica amb els Pirineus?</enunciado>
+          <opcion correcta="si">Les Muntanyes Basques</opcion>
+          <opcion>El Sistema Ibèric</opcion>
+          <opcion>El Massís Galaicoportuguès</opcion>
+          <opcion>El Sistema Central</opcion>
+          <explicacion>Les Muntanyes Basques són entre la Serralada Cantàbrica (a l'oest) i els Pirineus (a l'est).</explicacion>
+        </pregunta>
+        <pregunta id="rva-p05">
+          <enunciado>Quin sistema muntanyós tanca la Meseta pel sud?</enunciado>
+          <opcion correcta="si">Serra Morena</opcion>
+          <opcion>Els Sistemes Bètics</opcion>
+          <opcion>Els Monts de Toledo</opcion>
+          <opcion>El Sistema Central</opcion>
+          <explicacion>Serra Morena és el límit sud de la Meseta. Els Sistemes Bètics són encara més al sud, fora de la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p06">
+          <enunciado>Quin sistema muntanyós tanca la Meseta pel nord?</enunciado>
+          <opcion correcta="si">La Serralada Cantàbrica</opcion>
+          <opcion>Els Pirineus</opcion>
+          <opcion>El Sistema Central</opcion>
+          <opcion>Les Muntanyes Basques</opcion>
+          <explicacion>La Serralada Cantàbrica separa la Meseta de la costa de la mar Cantàbrica.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p07">
+          <enunciado>En quin sistema muntanyós hi ha el Mulhacén, el cim més alt de la península?</enunciado>
+          <opcion correcta="si">Els Sistemes Bètics</opcion>
+          <opcion>Els Pirineus</opcion>
+          <opcion>El Sistema Central</opcion>
+          <opcion>La Serralada Cantàbrica</opcion>
+          <explicacion>El Mulhacén (3479 m) és a Sierra Nevada, a la Serralada Penibètica, que forma part dels Sistemes Bètics. El cim més alt dels Pirineus és l'Aneto.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p08">
+          <enunciado>Quin sistema muntanyós arriba al nord de la Comunitat Valenciana, on hi ha el Penyagolosa?</enunciado>
+          <opcion correcta="si">El Sistema Ibèric</opcion>
+          <opcion>Els Sistemes Bètics</opcion>
+          <opcion>Serra Morena</opcion>
+          <opcion>El Sistema Central</opcion>
+          <explicacion>El Sistema Ibèric arriba fins a Castelló i l'interior de València. Les muntanyes del sud (com Aitana, a Alacant) ja formen part dels Sistemes Bètics.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p09">
+          <enunciado>Quin sistema muntanyós és entre Galícia i el nord de Portugal?</enunciado>
+          <opcion correcta="si">El Massís Galaicoportuguès</opcion>
+          <opcion>La Serralada Cantàbrica</opcion>
+          <opcion>El Sistema Central</opcion>
+          <opcion>Les Muntanyes Basques</opcion>
+          <explicacion>El seu nom ho diu: «galaic» (de Galícia) i «portuguès» (de Portugal).</explicacion>
+        </pregunta>
+        <pregunta id="rva-p10">
+          <enunciado>El Sistema Ibèric és a l'oest de la Meseta.</enunciado>
+          <opcion>Vertader</opcion>
+          <opcion correcta="si">Fals</opcion>
+          <explicacion>És fals: el Sistema Ibèric tanca la Meseta per l'est. A l'oest, la Meseta arriba fins a Portugal.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p11">
+          <enunciado>Els Sistemes Bètics tenen dues serralades: la Subbètica i la Penibètica.</enunciado>
+          <opcion correcta="si">Vertader</opcion>
+          <opcion>Fals</opcion>
+          <explicacion>És vertader: la Subbètica és més a l'interior i la Penibètica, al costat de la costa.</explicacion>
+        </pregunta>
+        <pregunta id="rva-p12">
+          <enunciado>Els Monts de Toledo són més alts que el Sistema Central.</enunciado>
+          <opcion>Vertader</opcion>
+          <opcion correcta="si">Fals</opcion>
+          <explicacion>És fals: els Monts de Toledo són muntanyes baixes i molt desgastades. Al Sistema Central hi ha cims de més de 2500 m, com l'Almanzor.</explicacion>
+        </pregunta>
+
+      </tema>
+    </asignatura>
+  </curso>
+</banco>
