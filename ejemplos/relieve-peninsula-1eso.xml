@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<banco>
+  <curso nombre="1º ESO">
+    <asignatura nombre="Geografía e Historia">
+      <tema nombre="El relieve de la península ibérica">
+
+        <!-- 1 · Señalar en el mapa -->
+        <pregunta id="rel-t01" tipo="mapa">
+          <enunciado>Toca en el mapa el Sistema Central</enunciado>
+          <mapa capa="relieve" tocar="sistema-central"/>
+          <explicacion>El Sistema Central cruza la Meseta de oeste a este y la divide en dos: la Submeseta Norte y la Submeseta Sur. Allí están la sierra de Gredos y la de Guadarrama.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t02" tipo="mapa">
+          <enunciado>Toca en el mapa la Cordillera Cantábrica</enunciado>
+          <mapa capa="relieve" tocar="cordillera-cantabrica"/>
+          <explicacion>La Cordillera Cantábrica corre paralela a la costa del mar Cantábrico y cierra la Meseta por el norte. En ella están los Picos de Europa.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t03" tipo="mapa">
+          <enunciado>Toca en el mapa los Pirineos</enunciado>
+          <mapa capa="relieve" tocar="pirineos"/>
+          <explicacion>Los Pirineos van del golfo de Vizcaya al Mediterráneo y hacen de frontera natural con Francia. Son unidades exteriores: están fuera de la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t04" tipo="mapa">
+          <enunciado>Toca en el mapa el Sistema Ibérico</enunciado>
+          <mapa capa="relieve" tocar="sistema-iberico"/>
+          <explicacion>El Sistema Ibérico cierra la Meseta por el este y la separa de la Depresión del Ebro. Su cumbre más alta es el Moncayo.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t05" tipo="mapa">
+          <enunciado>Toca en el mapa Sierra Morena</enunciado>
+          <mapa capa="relieve" tocar="sierra-morena"/>
+          <explicacion>Sierra Morena es el reborde sur de la Meseta: la separa de la Depresión del Guadalquivir.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t06" tipo="mapa">
+          <enunciado>Toca en el mapa los Montes de Toledo</enunciado>
+          <mapa capa="relieve" tocar="montes-de-toledo"/>
+          <explicacion>Los Montes de Toledo están dentro de la Submeseta Sur. Son montañas viejas y bajas, muy desgastadas por la erosión.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t07" tipo="mapa">
+          <enunciado>Toca en el mapa los Sistemas Béticos (vale cualquiera de las dos cordilleras)</enunciado>
+          <mapa capa="relieve" tocar="sistemas-beticos"/>
+          <explicacion>Los Sistemas Béticos están en el sureste y tienen dos cordilleras: la Subbética, más al interior, y la Penibética, junto a la costa, donde está Sierra Nevada.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t08" tipo="mapa">
+          <enunciado>Toca en el mapa la Depresión del Ebro</enunciado>
+          <mapa capa="relieve" tocar="depresion-del-ebro"/>
+          <explicacion>La Depresión del Ebro es una llanura en forma de triángulo entre los Pirineos, el Sistema Ibérico y la Cordillera Costero-Catalana. Por ella corre el río Ebro.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t09" tipo="mapa">
+          <enunciado>Toca en el mapa la Depresión del Guadalquivir</enunciado>
+          <mapa capa="relieve" tocar="depresion-del-guadalquivir"/>
+          <explicacion>La Depresión del Guadalquivir está entre Sierra Morena y los Sistemas Béticos, y se abre al océano Atlántico. Por ella corre el río Guadalquivir.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t10" tipo="mapa">
+          <enunciado>Toca en el mapa el Macizo Galaico</enunciado>
+          <mapa capa="relieve" tocar="macizo-galaico"/>
+          <explicacion>El Macizo Galaico está en Galicia, al noroeste. Es de los relieves más antiguos de la península, por eso sus montañas son bajas y redondeadas.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t11" tipo="mapa">
+          <enunciado>Toca en el mapa la Cordillera Costero-Catalana</enunciado>
+          <mapa capa="relieve" tocar="cordillera-costero-catalana"/>
+          <explicacion>La Cordillera Costero-Catalana va paralela a la costa mediterránea de Cataluña y cierra la Depresión del Ebro por el este.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t12" tipo="mapa">
+          <enunciado>Toca en el mapa la Submeseta Norte</enunciado>
+          <mapa capa="relieve" tocar="submeseta-norte"/>
+          <explicacion>La Submeseta Norte está al norte del Sistema Central y es algo más alta que la Submeseta Sur. Por ella corre el río Duero.</explicacion>
+        </pregunta>
+        <pregunta id="rel-t13" tipo="mapa">
+          <enunciado>Toca en el mapa el Mulhacén, el pico más alto de la península</enunciado>
+          <mapa capa="relieve" tocar="mulhacen"/>
+          <explicacion>El Mulhacén (3479 m) está en Sierra Nevada, en la Cordillera Penibética, al sureste de la península.</explicacion>
+        </pregunta>
+
+        <!-- 2 · ¿Qué es esto? (las opciones se ponen solas) -->
+        <pregunta id="rel-q01">
+          <enunciado>¿Qué sistema montañoso está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sistema-iberico"/>
+          <explicacion>Es el Sistema Ibérico: va del noroeste al sureste y separa la Meseta de la Depresión del Ebro.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q02">
+          <enunciado>¿Qué sistema montañoso está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="montes-de-leon"/>
+          <explicacion>Son los Montes de León, entre Galicia y la Submeseta Norte. Junto con el Macizo Galaico cierran la Meseta por el noroeste.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q03">
+          <enunciado>¿Qué sistema montañoso está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="sierra-morena"/>
+          <explicacion>Es Sierra Morena, el borde sur de la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q04">
+          <enunciado>¿Qué cordillera está marcada en el mapa?</enunciado>
+          <mapa capa="relieve" marca="cordillera-penibetica"/>
+          <explicacion>Es la Cordillera Penibética, la de los Sistemas Béticos que va junto a la costa. En ella está Sierra Nevada, con el Mulhacén.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q05">
+          <enunciado>¿Qué sistema montañoso está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="montes-vascos"/>
+          <explicacion>Son los Montes Vascos: unen la Cordillera Cantábrica con los Pirineos.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q06">
+          <enunciado>¿Qué sistema montañoso está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="montes-de-toledo"/>
+          <explicacion>Son los Montes de Toledo, dentro de la Submeseta Sur.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q07">
+          <enunciado>¿Qué unidad de relieve está marcada en el mapa?</enunciado>
+          <mapa capa="relieve" marca="submeseta-sur"/>
+          <explicacion>Es la Submeseta Sur, al sur del Sistema Central. Por ella corren el Tajo y el Guadiana.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q08">
+          <enunciado>¿Qué unidad de relieve está marcada en el mapa?</enunciado>
+          <mapa capa="relieve" marca="depresion-del-ebro"/>
+          <explicacion>Es la Depresión del Ebro, una llanura baja entre montañas en el noreste.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q09">
+          <enunciado>¿Qué pico está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="aneto"/>
+          <explicacion>Es el Aneto (3404 m), el pico más alto de los Pirineos.</explicacion>
+        </pregunta>
+        <pregunta id="rel-q10">
+          <enunciado>¿Qué pico está marcado en el mapa?</enunciado>
+          <mapa capa="relieve" marca="almanzor"/>
+          <explicacion>Es el Almanzor (2592 m), en la sierra de Gredos: el pico más alto del Sistema Central.</explicacion>
+        </pregunta>
+
+        <!-- 3 · Escribir el nombre (vale el nombre del mapa) -->
+        <pregunta id="rel-e01" tipo="escrita">
+          <enunciado>Escribe el nombre del sistema montañoso marcado</enunciado>
+          <mapa capa="relieve" marca="sistema-central"/>
+          <explicacion>Es el Sistema Central, que divide la Meseta en dos submesetas.</explicacion>
+        </pregunta>
+        <pregunta id="rel-e02" tipo="escrita">
+          <enunciado>Escribe el nombre de la cordillera marcada</enunciado>
+          <mapa capa="relieve" marca="pirineos"/>
+          <explicacion>Son los Pirineos, la frontera natural con Francia.</explicacion>
+        </pregunta>
+        <pregunta id="rel-e03" tipo="escrita">
+          <enunciado>Escribe el nombre de la cordillera marcada</enunciado>
+          <mapa capa="relieve" marca="cordillera-cantabrica"/>
+          <explicacion>Es la Cordillera Cantábrica, junto al mar Cantábrico.</explicacion>
+        </pregunta>
+        <pregunta id="rel-e04" tipo="escrita">
+          <enunciado>Escribe el nombre de la llanura marcada</enunciado>
+          <mapa capa="relieve" marca="depresion-del-guadalquivir"/>
+          <explicacion>Es la Depresión del Guadalquivir, entre Sierra Morena y los Sistemas Béticos.</explicacion>
+        </pregunta>
+        <pregunta id="rel-e05" tipo="escrita">
+          <enunciado>Escribe el nombre del pico marcado, el más alto de la península</enunciado>
+          <mapa capa="relieve" marca="mulhacen"/>
+          <explicacion>Es el Mulhacén (3479 m), en Sierra Nevada. Se escribe con tilde en la é.</explicacion>
+        </pregunta>
+
+        <!-- 4 · Sin mapa -->
+        <pregunta id="rel-p01">
+          <enunciado>¿Qué sistema montañoso divide la Meseta en Submeseta Norte y Submeseta Sur?</enunciado>
+          <opcion correcta="si">El Sistema Central</opcion>
+          <opcion>El Sistema Ibérico</opcion>
+          <opcion>Sierra Morena</opcion>
+          <opcion>Los Montes de Toledo</opcion>
+          <explicacion>El Sistema Central atraviesa la Meseta de oeste a este. Los Montes de Toledo también están en la Meseta, pero solo dentro de la Submeseta Sur.</explicacion>
+        </pregunta>
+        <pregunta id="rel-p02">
+          <enunciado>¿Cuál es el pico más alto de la península ibérica?</enunciado>
+          <opcion correcta="si">El Mulhacén</opcion>
+          <opcion>El Aneto</opcion>
+          <opcion>El Teide</opcion>
+          <opcion>El Moncayo</opcion>
+          <explicacion>El Mulhacén (3479 m) es el más alto de la península. El Teide (3715 m) es más alto, pero está en Tenerife (Canarias), no en la península.</explicacion>
+        </pregunta>
+        <pregunta id="rel-p03">
+          <enunciado>¿Cuál de estos relieves es una unidad exterior a la Meseta?</enunciado>
+          <opcion correcta="si">Los Pirineos</opcion>
+          <opcion>La Cordillera Cantábrica</opcion>
+          <opcion>Sierra Morena</opcion>
+          <opcion>El Sistema Ibérico</opcion>
+          <explicacion>Los Pirineos están fuera de la Meseta. La Cordillera Cantábrica, Sierra Morena y el Sistema Ibérico son rebordes: rodean la Meseta.</explicacion>
+        </pregunta>
+        <pregunta id="rel-p04">
+          <enunciado>¿Entre qué dos relieves está la Depresión del Guadalquivir?</enunciado>
+          <opcion correcta="si">Sierra Morena y los Sistemas Béticos</opcion>
+          <opcion>El Sistema Central y los Montes de Toledo</opcion>
+          <opcion>Los Pirineos y el Sistema Ibérico</opcion>
+          <opcion>La Cordillera Cantábrica y el Macizo Galaico</opcion>
+          <explicacion>Sierra Morena la cierra por el norte y los Sistemas Béticos por el sur. Los Pirineos y el Sistema Ibérico rodean la Depresión del Ebro.</explicacion>
+        </pregunta>
+        <pregunta id="rel-p05" respuesta="falso">
+          <enunciado>Los Montes de Toledo están en la Submeseta Norte.</enunciado>
+          <explicacion>Es falso: los Montes de Toledo están en la Submeseta Sur, al sur del Sistema Central.</explicacion>
+        </pregunta>
+        <pregunta id="rel-p06" respuesta="verdadero">
+          <enunciado>El Aneto es el pico más alto de los Pirineos.</enunciado>
+          <explicacion>Es verdadero: el Aneto mide 3404 m y está en el Pirineo de Huesca.</explicacion>
+        </pregunta>
+
+      </tema>
+    </asignatura>
+  </curso>
+</banco>

@@ -1,6 +1,7 @@
 :root{
   --bg:#ffffff; --surface:#fafafa; --line:#e0e0e0; --line-strong:#757575; --muted:#595959; --ink:#000000;
   --act:#000000; --act-ink:#ffffff;
+  --map-mar:#f1f1f1; --map-tierra:#ffffff; --map-borde:#9e9e9e; --map-vecino:#e4e4e4; --map-llano:#e9e9e9; --map-monte:#a8a8a8; --map-on:#000000;
   --err:#b71c1c; --err-ink:#7a0000; --warn:#e65100; --info:#0d47a1;
   --focus:0 0 0 2px #ffffff,0 0 0 4px #000000;
   --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
@@ -22,6 +23,7 @@
   :root{
     --bg:#121212; --surface:#1e1e1e; --line:#333333; --line-strong:#8a8a8a; --muted:#bdbdbd; --ink:#efefef;
     --act:#ffffff; --act-ink:#000000;
+    --map-mar:#141414; --map-tierra:#3a3a3a; --map-borde:#7a7a7a; --map-vecino:#262626; --map-llano:#4b4b4b; --map-monte:#8c8c8c; --map-on:#ffffff;
     --err:#ef9a9a; --err-ink:#ffb4ab; --warn:#ffb74d; --info:#90caf9;
     --focus:0 0 0 2px #000000,0 0 0 4px #ffffff;
     --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23efefef' stroke-width='1'/%3E%3C/svg%3E");
@@ -484,3 +486,26 @@ button.cal-d{font:inherit;cursor:pointer}
 .meta-b.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}
 .premio-acts{display:inline-flex;align-items:center}
 .premio-pc{display:inline-flex;align-items:center}
+
+/* ---------- v25: mapas ---------- */
+.mapa{margin:0 0 16px;border:1px solid var(--line);background:var(--map-mar);line-height:0;position:relative}
+.mapa-svg{display:block;width:100%;height:auto}
+.mapa.tocable{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.mapa.peq{margin:12px 0 4px;max-width:420px}
+.mp-tierra{fill:var(--map-tierra);stroke:var(--map-borde);stroke-width:1.2;stroke-linejoin:round}
+.mp-vecino{fill:var(--map-vecino);stroke:var(--map-borde);stroke-width:1;stroke-linejoin:round}
+.mf{stroke-linejoin:round;transition:fill .15s}
+.mf-llanura{fill:var(--map-llano);stroke:var(--map-borde);stroke-width:.8;stroke-dasharray:4 3}
+.mf-cordillera{fill:var(--map-monte)}
+.mf-pico{fill:var(--map-monte);stroke:var(--map-tierra);stroke-width:2}
+.mf.on,.mf.ok{fill:var(--map-on);stroke:var(--map-on)}
+.mf-llanura.on,.mf-llanura.ok{fill:var(--map-on);fill-opacity:.55;stroke-dasharray:none;stroke-width:2}
+.mf.sel{fill:var(--map-on);stroke:var(--map-on);stroke-width:3;fill-opacity:.75}
+.mf-llanura.sel{fill-opacity:.4}
+.mf.ko{fill:var(--err);stroke:var(--err);fill-opacity:.85}
+.mf-pico.on,.mf-pico.ok,.mf-pico.sel,.mf-pico.ko{transform-box:fill-box;transform-origin:50% 100%;transform:scale(1.6)}
+.mp-lbl{font:600 30px var(--font);fill:var(--ink);paint-order:stroke;stroke:var(--map-tierra);stroke-width:7px;stroke-linejoin:round;pointer-events:none}
+.mp-lbl.ko{fill:var(--err-ink)}
+.mapa-hint{margin:-4px 0 12px}
+#mapaOk{width:100%}
+#mapaOk[disabled]{opacity:.35}

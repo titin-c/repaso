@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-const VERSION='24';
+const VERSION='25';
 const CONFIG=Object.assign({servidor:'',repo:'',rama:'main',carpeta:'preguntas'},window.REPEPASO_CONFIG||{});
 
 const LS={cache:'repaso.cache.v3',resultados:'repaso.resultados.v1',filtro:'repaso.filtro.v1',num:'repaso.num.v1',borrador:'repaso.borrador.v1',imp:'repaso.importar.v1'};
@@ -38,7 +38,7 @@ function descargar(contenido,nombre,tipo){
 function aviso(tipo,html){return '<div class="aviso '+tipo+'" role="status">'+ic(tipo==='err'?'alert':'info')+'<div>'+html+'</div></div>'}
 const unicosOrden=a=>a.filter((x,i)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);
 /* Texto de la respuesta correcta, sea de opciones o escrita */
-const correctaDe=q=>q.tipo==='escrita'?(q.respuestas||[])[0]||'':q.opciones[q.correcta];
+const correctaDe=q=>q.tipo==='mapa'?nombreMapa(q.mapa.capa,q.mapa.tocar):q.tipo==='escrita'?(q.respuestas||[])[0]||'':q.opciones[q.correcta];
 
 /* ---------- respuesta escrita: ¿lo que ha escrito vale? ----------
    No cuentan mayúsculas, espacios, signos ni artículos («la yegua» = «yegua»).
@@ -369,6 +369,88 @@ function heredar(n,campo){
   }
   return '';
 }
+
+/* ================= MAPAS =================
+   Los dibujos están en mapas.js (contornos de Natural Earth, relieve simplificado como en el libro).
+   En el XML:  <mapa capa="relieve" marca="sistema-central"/>  → sale el mapa con ese elemento marcado
+               <mapa capa="relieve" tocar="sistema-central"/>  → hay que tocarlo en el mapa          */
+const MAPAS=window.REPEPASO_MAPAS||{};
+const idMapa=v=>norm(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+const CAPAS={};
+Object.keys(MAPAS).forEach(m=>Object.keys(MAPAS[m].capas).forEach(c=>{CAPAS[c]={m:MAPAS[m],c:MAPAS[m].capas[c]}}));
+const rasgoDe=(capa,id)=>{const C=CAPAS[capa];return C?C.c.f.find(f=>f.id===id):null};
+const grupoMapa=(capa,id)=>{const C=CAPAS[capa];return C?(C.c.g||[]).find(g=>g.id===id):null};
+/* convierte «sistemas-beticos» en sus cordilleras; deja los ids desconocidos para avisar del error */
+function idsMapa(capa,v){
+  const out=[];String(v||'').split(/[\s,;]+/).map(idMapa).filter(Boolean).forEach(id=>{const g=grupoMapa(capa,id);(g?g.ids:[id]).forEach(x=>{if(out.indexOf(x)<0)out.push(x)})});
+  return out;
+}
+function grupoIgual(capa,ids){const C=CAPAS[capa];return C?(C.c.g||[]).find(g=>g.ids.length===ids.length&&g.ids.every(x=>ids.indexOf(x)>=0)):null}
+function nombreMapa(capa,ids){
+  ids=ids||[];const g=grupoIgual(capa,ids);if(g)return g.n;
+  const n=ids.map(id=>(rasgoDe(capa,id)||{}).n||id);
+  return n.length>1?n.slice(0,-1).join(', ')+' y '+n[n.length-1]:n[0]||'';
+}
+function formasMapa(capa,ids){const g=grupoIgual(capa,ids);if(g)return [g.n].concat(g.alt||[]);if(ids.length!==1)return [];const f=rasgoDe(capa,ids[0]);return f?[f.n].concat(f.alt||[]):[]}
+const TIPO_RASGO={cordillera:'sistemas montañosos',llanura:'llanuras y depresiones',pico:'picos'};
+/* «¿Qué es esto?» sin opciones escritas: la correcta y 3 del mismo tipo (siempre las mismas para esa pregunta) */
+function completarMapa(q){
+  const M=q.mapa;if(!M||!CAPAS[M.capa])return q;
+  if(q.tipo==='escrita'){if(!(q.respuestas||[]).some(r=>norm(r))&&M.marca.length)q.respuestas=formasMapa(M.capa,M.marca);return q}
+  if(q.tipo==='mapa'||!M.marca.length||(q.opciones||[]).some(o=>norm(o)))return q;
+  const C=CAPAS[M.capa].c,f0=rasgoDe(M.capa,M.marca[0]);if(!f0)return q;
+  const bueno=nombreMapa(M.capa,M.marca),sem=hashN(M.marca.join(' ')+'|'+norm(q.enunciado));
+  const otros=C.f.filter(f=>f.t===f0.t&&M.marca.indexOf(f.id)<0).map(f=>f.n).concat(C.g?C.g.filter(g=>g.n!==bueno&&!g.ids.some(x=>M.marca.indexOf(x)>=0)&&rasgoDe(M.capa,g.ids[0]).t===f0.t).map(g=>g.n):[]);
+  otros.sort((a,b)=>hashN(a+sem)-hashN(b+sem));
+  q.opciones=[bueno].concat(otros.slice(0,3));q.correcta=0;q.nCorrectas=1;q.tipo='opciones';
+  return q;
+}
+function errorMapa(q){
+  const M=q.mapa;if(!M)return q.tipo==='mapa'?'falta el mapa':'';
+  if(!CAPAS[M.capa])return 'el mapa «'+M.capa+'» no existe (hay: '+Object.keys(CAPAS).join(', ')+')';
+  const mal=M.marca.concat(M.tocar).filter(id=>!rasgoDe(M.capa,id));
+  if(mal.length)return 'en el mapa no hay «'+mal.join('», «')+'»';
+  if(q.tipo==='mapa'&&!M.tocar.length)return 'falta qué hay que tocar en el mapa';
+  return '';
+}
+const dAnillo=r=>{let t='M';for(let i=0;i<r.length;i+=2)t+=(i?'L':'')+r[i]+' '+r[i+1];return t+'Z'};
+const dRasgo=f=>f.r.map(dAnillo).join('');
+function centroRasgo(f){
+  if(f.t==='pico')return [f.x,f.y-26];
+  if(f.c)return [f.c[0],f.c[1]+10];
+  let best=f.r[0];f.r.forEach(r=>{if(r.length>best.length)best=r});
+  let x=0,y=0,n=best.length/2;for(let i=0;i<best.length;i+=2){x+=best[i];y+=best[i+1]}
+  return [x/n,y/n];
+}
+/* est: {sel:id elegido, fin:true cuando ya se ha respondido, peq:true en el editor} */
+function mapaHTML(q,est){
+  est=est||{};const M=q.mapa,C=M&&CAPAS[M.capa];if(!C)return '';
+  const mk=M.marca||[],tc=M.tocar||[],fin=!!est.fin,F=C.c.f;
+  const cl=f=>'mf mf-'+f.t+(mk.indexOf(f.id)>=0?' on':'')+(!fin&&est.sel===f.id?' sel':'')+(fin&&tc.indexOf(f.id)>=0?' ok':'')+(fin&&est.sel===f.id&&tc.indexOf(f.id)<0?' ko':'');
+  let h='<svg class="mapa-svg" viewBox="0 0 '+C.m.w+' '+C.m.h+'" role="img" aria-label="Mapa: '+esc(C.c.n)+'">'+
+    C.m.fondo.map(f=>'<path class="mp-'+f.c+'" d="'+dRasgo(f)+'"/>').join('');
+  ['llanura','cordillera'].forEach(t=>F.filter(f=>f.t===t).forEach(f=>{h+='<path class="'+cl(f)+'" d="'+dRasgo(f)+'"/>'}));
+  F.filter(f=>f.t==='pico').forEach(f=>{h+='<path class="'+cl(f)+'" d="M'+f.x+' '+(f.y-12)+'l10 17h-20z"/>'});
+  if(fin){
+    const ver=tc.slice();if(est.sel&&ver.indexOf(est.sel)<0)ver.push(est.sel);
+    ver.forEach(id=>{const f=rasgoDe(M.capa,id);if(!f)return;const c=centroRasgo(f);
+      h+='<text class="mp-lbl'+(tc.indexOf(id)<0?' ko':'')+'" x="'+c[0].toFixed(0)+'" y="'+c[1].toFixed(0)+'" text-anchor="middle">'+esc(f.n)+'</text>'});
+  }
+  return '<div class="mapa'+(q.tipo==='mapa'&&!fin&&!est.peq?' tocable':'')+(est.peq?' peq':'')+'"'+(est.peq?'':' id="mapa"')+'>'+h+'</svg></div>';
+}
+/* El elemento más cercano a donde ha tocado (las cordilleras ganan a las llanuras que hay debajo) */
+function dentroAnillo(r,x,y){let d=false;for(let i=0,j=r.length-2;i<r.length;j=i,i+=2){const xi=r[i],yi=r[i+1],xj=r[j],yj=r[j+1];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)d=!d}return d}
+function distAnillo(r,x,y){let m=1e9;for(let i=0,j=r.length-2;i<r.length;j=i,i+=2){const ax=r[j],ay=r[j+1],bx=r[i],by=r[i+1],dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((x-ax)*dx+(y-ay)*dy)/l:0;t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(x-ax-t*dx,y-ay-t*dy))}return m}
+function rasgoCerca(capa,x,y,radio){
+  const C=CAPAS[capa];if(!C)return null;let best=null,bd=1e9;
+  C.c.f.forEach(f=>{
+    let d;
+    if(f.t==='pico')d=Math.hypot(x-f.x,y-f.y+5)-14;   /* los picos ganan a la cordillera en la que están */
+    else{const den=f.r.some(r=>dentroAnillo(r,x,y));d=den?0:Math.min.apply(null,f.r.map(r=>distAnillo(r,x,y)));if(f.t==='llanura')d+=radio*0.5}
+    if(d<bd){bd=d;best=f}
+  });
+  return bd<=radio?best:null;
+}
 function leerPregunta(n){
   const curso=heredar(n,'curso'),asignatura=heredar(n,'asignatura'),tema=heredar(n,'tema');
   const en=hijos(n,['enunciado'])[0];const enunciado=norm(en?en.textContent:n.getAttribute('texto'));
@@ -387,6 +469,13 @@ function leerPregunta(n){
     opciones:escrita?[]:ops.map(o=>o.t),correcta:escrita?-1:ops.findIndex(o=>o.c),nCorrectas:escrita?0:ops.filter(o=>o.c).length,
     explicacion:ex?norm(ex.textContent):''};
   if(escrita){q.tipo='escrita';q.respuestas=escritas;q.exacta=SI.test((n.getAttribute('exacta')||'').trim())}
+  const mp=hijos(n,['mapa'])[0];
+  if(mp){
+    const capa=idMapa(mp.getAttribute('capa')||'');
+    q.mapa={capa,marca:idsMapa(capa,mp.getAttribute('marca')),tocar:idsMapa(capa,mp.getAttribute('tocar'))};
+    if(q.mapa.tocar.length&&!escrita&&!ops.length){q.tipo='mapa';q.opciones=[];q.correcta=-1;q.nCorrectas=0}
+    completarMapa(q);
+  }else if(/^mapa/i.test(n.getAttribute('tipo')||'')&&!escrita&&!ops.length){q.tipo='mapa';q.opciones=[];q.correcta=-1}
   if(!q.id){q.id=idDe(q);q.idAuto=true}
   return q;
 }
@@ -397,13 +486,17 @@ function idDe(q){
 function errorDe(q){
   const falta=['curso','asignatura','tema','enunciado'].filter(k=>!norm(q[k]));
   if(falta.length)return 'falta '+falta.join(', ').replace('enunciado','la pregunta');
+  const em=errorMapa(q);if(em||q.tipo==='mapa')return em;
   if(q.tipo==='escrita')return (q.respuestas||[]).some(r=>norm(r))?'':'falta la respuesta correcta';
   if(q.opciones.filter(o=>norm(o)).length<2)return 'necesita al menos 2 respuestas';
   if(q.nCorrectas>1)return 'tiene más de una respuesta marcada como correcta';
   if(q.correcta<0||!norm(q.opciones[q.correcta]))return 'no tiene marcada la respuesta correcta';
   return '';
 }
-function limpiar(q){
+const mapaLimpio=q=>q.mapa&&q.mapa.capa?{mapa:{capa:q.mapa.capa,marca:(q.mapa.marca||[]).slice(),tocar:(q.mapa.tocar||[]).slice()}}:{};
+function limpiar(q){return Object.assign(limpiar0(q),mapaLimpio(q))}
+function limpiar0(q){
+  if(q.tipo==='mapa')return {id:q.id,idAuto:!!q.idAuto,tipo:'mapa',curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),opciones:[],correcta:-1,explicacion:norm(q.explicacion)};
   if(q.tipo==='escrita')return {id:q.id,idAuto:!!q.idAuto,tipo:'escrita',curso:norm(q.curso),asignatura:norm(q.asignatura),tema:norm(q.tema),enunciado:norm(q.enunciado),
     opciones:[],correcta:-1,respuestas:unicosOrden((q.respuestas||[]).map(norm).filter(Boolean)),exacta:!!q.exacta,explicacion:norm(q.explicacion)};
   const keep=[];q.opciones.forEach((o,i)=>{if(norm(o))keep.push(i)});
@@ -434,7 +527,10 @@ function aXML(P,sinPuntos){
       Object.keys(arbol[c][a]).forEach(t=>{
         out.push('      <tema nombre="'+x(t)+'">');
         arbol[c][a][t].forEach(q=>{
-          if(esVF(q)){
+          const mx=q.mapa?'          <mapa capa="'+x(q.mapa.capa)+'"'+(q.mapa.marca.length?' marca="'+x(q.mapa.marca.join(' '))+'"':'')+(q.mapa.tocar.length?' tocar="'+x(q.mapa.tocar.join(' '))+'"':'')+'/>':'';
+          if(q.tipo==='mapa'){
+            out.push('        <pregunta id="'+x(q.id)+'" tipo="mapa">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
+          }else if(esVF(q)){
             out.push('        <pregunta id="'+x(q.id)+'" respuesta="'+(q.correcta===0?'verdadero':'falso')+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
           }else if(q.tipo==='escrita'){
             out.push('        <pregunta id="'+x(q.id)+'" tipo="escrita"'+(q.exacta?' exacta="si"':'')+'>','          <enunciado>'+x(q.enunciado)+'</enunciado>');
@@ -443,6 +539,7 @@ function aXML(P,sinPuntos){
             out.push('        <pregunta id="'+x(q.id)+'">','          <enunciado>'+x(q.enunciado)+'</enunciado>');
             q.opciones.forEach((o,i)=>out.push('          <opcion'+(i===q.correcta?' correcta="si"':'')+'>'+x(o)+'</opcion>'));
           }
+          if(mx)out.push(mx);
           if(q.explicacion)out.push('          <explicacion>'+x(q.explicacion)+'</explicacion>');
           out.push('        </pregunta>');
         });
@@ -682,12 +779,16 @@ function empezar(lista){
 }
 function renderPregunta(){
   const s=E.sesion,{q,orden}=s.preguntas[s.i],n=s.preguntas.length;
+  s.mapaSel=null;
   app.innerHTML=
     '<div class="qhead"><button class="icbtn" data-a="salir" aria-label="Salir de la ronda">'+ic('x')+'</button>'+
     '<div class="linea" aria-hidden="true"><i style="width:'+(s.i/n*100)+'%"></i></div><span class="qn" aria-label="Pregunta '+(s.i+1)+' de '+n+'">'+(s.i+1)+'/'+n+'</span></div>'+
     '<p class="eyebrow">'+esc(q.asignatura)+' · '+esc(q.tema)+'</p>'+
     '<p class="enun" id="enun">'+esc(q.enunciado)+'</p>'+
-    (q.tipo==='escrita'
+    (q.mapa?mapaHTML(q,{sel:s.mapaSel}):'')+
+    (q.tipo==='mapa'
+      ?'<p class="hint mapa-hint" id="mapaHint">Toca en el mapa y pulsa «Comprobar».</p><button class="btn" id="mapaOk" disabled>'+ic('check')+'Comprobar</button>'
+      :q.tipo==='escrita'
       ?'<form class="escrita" id="fEsc" autocomplete="off"><label class="sr" for="rEsc">Tu respuesta</label>'+
         '<input class="in" id="rEsc" placeholder="Escribe tu respuesta" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"'+
         ((q.respuestas||[]).every(r=>comoNumero(r)!==null)?' inputmode="decimal"':'')+'>'+
@@ -695,9 +796,34 @@ function renderPregunta(){
       :'<div class="opts" role="group" aria-labelledby="enun">'+orden.map((oi,k)=>'<button class="opt" data-o="'+oi+'"><span class="l">'+'ABCDEF'.charAt(k)+'</span><span>'+esc(q.opciones[oi])+'</span></button>').join('')+'</div>')+
     '<div id="fb" aria-live="polite"></div>';
   app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>responder(+b.dataset.o));
+  if(q.tipo==='mapa')activarMapa();
   const f=$('#fEsc');
   if(f){f.onsubmit=e=>{e.preventDefault();const v=$('#rEsc').value;if(!norm(v)){$('#rEsc').focus();return}responderEscrita(v)};try{$('#rEsc').focus({preventScroll:true})}catch(e){}}
   window.scrollTo(0,0);
+}
+/* Tocar en el mapa: el primer toque elige (se ve marcado) y «Comprobar» responde */
+function activarMapa(){
+  const s=E.sesion,q=s.preguntas[s.i].q,box=$('#mapa');if(!box)return;
+  box.onclick=ev=>{
+    if(s.resp[s.i])return;
+    const svg=box.querySelector('svg'),r=svg.getBoundingClientRect();if(!r.width)return;
+    const k=CAPAS[q.mapa.capa].m.w/r.width,f=rasgoCerca(q.mapa.capa,(ev.clientX-r.left)*k,(ev.clientY-r.top)*k,22*k);
+    if(!f){$('#mapaHint').textContent='Toca justo encima de un elemento del mapa.';return}
+    elegirMapa(f.id);
+  };
+  $('#mapaOk').onclick=()=>responderMapa();
+}
+function elegirMapa(id){
+  const s=E.sesion,q=s.preguntas[s.i].q;s.mapaSel=id;
+  $('#mapa').outerHTML=mapaHTML(q,{sel:id});activarMapa();
+  $('#mapaOk').disabled=false;$('#mapaHint').textContent='¿Es este? Pulsa «Comprobar» o toca otro.';
+}
+function responderMapa(){
+  const s=E.sesion,q=s.preguntas[s.i].q;if(s.resp[s.i]||!s.mapaSel)return;
+  const ok=q.mapa.tocar.indexOf(s.mapaSel)>=0;s.resp[s.i]={toque:s.mapaSel,ok};
+  $('#mapa').outerHTML=mapaHTML(q,{sel:s.mapaSel,fin:true});
+  $('#mapaOk').remove();$('#mapaHint').remove();
+  feedback(s,q,ok,'',nombreMapa(q.mapa.capa,[s.mapaSel]));
 }
 const BIEN=['¡Correcto!','¡Muy bien!','¡Eso es!','¡Perfecto!','¡Genial!'];
 function responder(oi){
@@ -754,7 +880,7 @@ function avisarError(){
   const s=E.sesion;if(!s)return;
   if(!(s.resp[s.i]||{}).ok&&avisosHoy()>=AVISOS_DIA){const c=$('#avisoErr');if(c)c.innerHTML='<p class="fb-nota aviso-ok">'+ic('info')+'<span>Hoy ya has avisado de '+AVISOS_DIA+' preguntas. Si crees que esta también está mal, díselo a papá o mamá.</span></p>';return}
   const it=s.preguntas[s.i],q=it.q,r=s.resp[s.i]||{};
-  const tuya=r.escrita!=null?r.escrita:(r.elegida!=null?q.opciones[r.elegida]:'');
+  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque]):(r.elegida!=null?q.opciones[r.elegida]:'');
   const caja=$('#avisoErr');
   /* primero le pide (opcional) que cuente qué está mal; el aviso se envía al pulsar «Enviar aviso» */
   if(caja&&!caja.querySelector('#avisoTxt')){
@@ -767,7 +893,7 @@ function avisarError(){
 function enviarAviso(){
   const s=E.sesion;if(!s)return;
   const q=s.preguntas[s.i].q,r=s.resp[s.i]||{};
-  const tuya=r.escrita!=null?r.escrita:(r.elegida!=null?q.opciones[r.elegida]:'');
+  const tuya=r.escrita!=null?r.escrita:r.toque!=null?nombreMapa(q.mapa.capa,[r.toque]):(r.elegida!=null?q.opciones[r.elegida]:'');
   const comentario=norm(($('#avisoTxt')||{}).value).slice(0,300);
   r.aviso=true;
   const caja=$('#avisoErr');
@@ -1621,7 +1747,7 @@ async function actualizar(){
 /* ================= AÑADIR PREGUNTAS CON IA ================= */
 /* Las indicaciones extra no se guardan nunca: solo valen para la tanda que se está creando */
 function guardarImp(){const c=Object.assign({},E.imp);delete c.extra;ls.set(LS.imp,c)}
-const TIPOS_IMP=[['test','Test'],['vf','Verdadero o falso'],['escrita','Respuesta escrita']];
+const TIPOS_IMP=[['test','Test'],['vf','Verdadero o falso'],['escrita','Respuesta escrita'],['mapa','Con mapa']];
 function tiposImp(){const t=(E.imp.tipos||[]).filter(x=>TIPOS_IMP.some(y=>y[0]===x));return t.length?t:['test','vf']}
 function promptTexto(){
   const i=E.imp,c=norm(i.curso)||'[CURSO]',a=norm(i.asignatura)||'[ASIGNATURA]',t=norm(i.tema)||'[TEMA]',T=tiposImp();
@@ -1642,6 +1768,17 @@ function promptTexto(){
     reglas.push('- Ortografía con hueco: escribe la palabra con guiones bajos donde falta la letra (por ejemplo «le__ía») y pon en <respuesta> la letra que falta y, en otra <respuesta>, la palabra entera («j» y «lejía»). Comprueba que la palabra completa existe, está bien escrita y que la letra que falta es una de las que preguntas (si preguntas «b o v», la respuesta tiene que ser b o v). Cada pregunta de ortografía pregunta UNA sola cosa (la letra que falta, o la tilde), nunca las dos a la vez, y nunca es de verdadero o falso.');
     ejemplo.push('        <pregunta tipo="escrita">','          <enunciado>¿Cuál es la raíz cuadrada de 9?</enunciado>','          <respuesta>3</respuesta>',
       '          <respuesta>tres</respuesta>','          <explicacion>Porque 3 × 3 = 9</explicacion>','        </pregunta>');
+  }
+  if(T.indexOf('mapa')>=0){
+    const lista=Object.keys(CAPAS).map(c=>{const C=CAPAS[c].c;return '  · capa="'+c+'" ('+C.n+'): '+C.f.map(f=>f.id).concat((C.g||[]).map(g=>g.id+' (= '+g.ids.join(' + ')+')')).join(', ')}).join('\n');
+    reglas.push('- Preguntas con mapa (solo si el tema es de mapas): añade dentro de la <pregunta> una etiqueta <mapa>. Hay tres formas:\n'+
+      '  1) «¿Qué es esto?»: <mapa capa="…" marca="id"/> y 4 opciones (o ninguna: entonces se ponen solas el nombre correcto y 3 del mismo tipo).\n'+
+      '  2) Escribir el nombre: tipo="escrita" en la <pregunta>, <mapa capa="…" marca="id"/> y en <respuesta> el nombre (si no pones <respuesta>, vale el nombre del mapa).\n'+
+      '  3) Señalar en el mapa: tipo="mapa" en la <pregunta>, sin opciones ni respuesta, y <mapa capa="…" tocar="id"/>. El enunciado dice qué hay que tocar.\n'+
+      'Usa SOLO estos mapas y estos id (no inventes otros):\n'+lista+'\n'+
+      'Mezcla las tres formas. Haz también preguntas de test sin mapa sobre el mismo tema (alturas, qué separa a qué, dónde está cada uno).');
+    ejemplo.push('        <pregunta tipo="mapa">','          <enunciado>Toca en el mapa el Sistema Central</enunciado>','          <mapa capa="relieve" tocar="sistema-central"/>',
+      '          <explicacion>El Sistema Central cruza la Meseta de oeste a este y la divide en Submeseta Norte y Submeseta Sur.</explicacion>','        </pregunta>');
   }
   const solo=T.length===1?'Todas las preguntas deben ser de este tipo:':'Mezcla estos tipos de pregunta:';
   return [
@@ -2049,18 +2186,20 @@ $('#fileXml').onchange=e=>{
 function preguntaVacia(ed,base){return {id:nuevoId(),curso:ed?ed.curso:'',asignatura:ed?ed.asignatura:'',tema:base?base.tema:'',enunciado:'',tipo:'opciones',opciones:['','','',''],correcta:-1,explicacion:''}}
 function edNuevo(){const ed={nombre:'',curso:'',asignatura:'',mixto:false,subidaId:'',preguntas:[]};ed.preguntas.push(preguntaVacia(ed));return ed}
 function edDesde(todas,nombre,subidaId){
-  const qs=todas.map(q=>{
+  const qs=todas.map(q=>Object.assign(edDe(q),q.mapa?{mapa:JSON.parse(JSON.stringify(q.mapa))}:{}));
+  function edDe(q){
+    if(q.tipo==='mapa')return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:'mapa',opciones:[],correcta:-1,explicacion:q.explicacion||''};
     if(q.tipo==='escrita')return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:'escrita',opciones:[],correcta:-1,respuestas:(q.respuestas&&q.respuestas.length?q.respuestas:['']).slice(),exacta:!!q.exacta,explicacion:q.explicacion||''};
     const vf=esVF(q),ops=q.opciones.slice();
     while(!vf&&ops.length<2)ops.push('');
     return {id:q.id,curso:q.curso,asignatura:q.asignatura,tema:q.tema,enunciado:q.enunciado,tipo:vf?'vf':'opciones',opciones:ops,correcta:q.correcta,explicacion:q.explicacion||''};
-  });
+  }
   const cs=unicos(qs.map(q=>q.curso)),as=unicos(qs.map(q=>q.asignatura));
   const ed={nombre:nombre||'',curso:cs.length===1?cs[0]:'',asignatura:as.length===1?as[0]:'',mixto:cs.length>1||as.length>1,subidaId:subidaId||'',preguntas:qs};
   if(!qs.length)qs.push(preguntaVacia(ed));
   return ed;
 }
-const esVacia=q=>!norm(q.enunciado)&&!norm(q.explicacion)&&(q.tipo==='vf'||(q.tipo==='escrita'?!(q.respuestas||[]).some(r=>norm(r)):!q.opciones.some(o=>norm(o))));
+const esVacia=q=>!norm(q.enunciado)&&!norm(q.explicacion)&&!q.mapa&&(q.tipo==='vf'||q.tipo==='mapa'||(q.tipo==='escrita'?!(q.respuestas||[]).some(r=>norm(r)):!q.opciones.some(o=>norm(o))));
 const tieneContenido=()=>E.ed&&E.ed.preguntas.some(q=>!esVacia(q));
 function nombreArchivo(){const ed=E.ed,p=[slug(ed.curso),slug(ed.asignatura)].filter(Boolean).join('_');return (p||'preguntas-nuevas')+'.xml'}
 function guardarBorrador(){ls.set(LS.borrador,E.ed)}
@@ -2072,7 +2211,9 @@ function refrescarPie(){
 function qHTML(q,i){
   const k0=(a,extra)=>' data-ed="'+a+'" data-q="'+i+'"'+(extra||'');
   let resp;
-  if(q.tipo==='escrita'){
+  if(q.tipo==='mapa'){
+    resp='<p class="hint">Se responde tocando en el mapa'+(q.mapa&&q.mapa.tocar.length?': tiene que tocar <b>'+esc(nombreMapa(q.mapa.capa,q.mapa.tocar))+'</b>':'')+'.</p>';
+  }else if(q.tipo==='escrita'){
     const rs=q.respuestas&&q.respuestas.length?q.respuestas:[''];
     resp=rs.map((r,k)=>'<div class="oprow"><input class="in" data-q="'+i+'" data-r="'+k+'" value="'+esc(r)+'" placeholder="'+(k?'Otra forma válida (opcional)':'Respuesta correcta')+'" aria-label="Pregunta '+(i+1)+', respuesta válida '+(k+1)+'" autocapitalize="off" autocorrect="off" spellcheck="false">'+
       (rs.length>1?'<button class="del"'+k0('delr',' data-o="'+k+'"')+' aria-label="Quitar respuesta válida '+(k+1)+'">'+ic('x')+'</button>':'')+'</div>').join('')+
@@ -2097,10 +2238,30 @@ function qHTML(q,i){
     '<div class="field"><span class="lbl-f">Tipo</span><div class="chips" role="group" aria-label="Tipo de pregunta '+(i+1)+'">'+
       '<button class="chip"'+k0('tipo',' data-v="opciones"')+' aria-pressed="'+(q.tipo==='opciones')+'">Test</button>'+
       '<button class="chip"'+k0('tipo',' data-v="vf"')+' aria-pressed="'+(q.tipo==='vf')+'">Verdadero o falso</button>'+
-      '<button class="chip"'+k0('tipo',' data-v="escrita"')+' aria-pressed="'+(q.tipo==='escrita')+'">Escrita</button></div></div>'+
+      '<button class="chip"'+k0('tipo',' data-v="escrita"')+' aria-pressed="'+(q.tipo==='escrita')+'">Escrita</button>'+
+      (q.mapa?'<button class="chip"'+k0('tipo',' data-v="mapa"')+' aria-pressed="'+(q.tipo==='mapa')+'">Tocar en el mapa</button>':'')+'</div></div>'+
+    edMapaHTML(q,i)+
     '<div class="field"><span class="lbl-f">Respuestas</span>'+resp+'</div>'+
     '<div class="field"><label class="lbl-f" for="x'+i+'">Explicación (opcional)</label><textarea class="in short" id="x'+i+'" data-q="'+i+'" data-f="explicacion" rows="2" placeholder="Se muestra después de responder">'+esc(q.explicacion)+'</textarea></div>'+
   '</section>';
+}
+/* Mapa de la pregunta en el editor: qué mapa y qué elemento (marcado, o el que hay que tocar) */
+function edMapaHTML(q,i){
+  const M=q.mapa,capas=Object.keys(CAPAS);if(!capas.length)return '';
+  let h='<div class="field"><label class="lbl-f" for="m'+i+'">Mapa (opcional)</label><select class="in" id="m'+i+'" data-mapa="capa" data-q="'+i+'"><option value="">Sin mapa</option>'+
+    capas.map(c=>'<option value="'+c+'"'+(M&&M.capa===c?' selected':'')+'>'+esc(CAPAS[c].c.n)+'</option>').join('')+'</select>';
+  if(M&&CAPAS[M.capa]){
+    const C=CAPAS[M.capa].c,ids=q.tipo==='mapa'?M.tocar:M.marca,val=(grupoIgual(M.capa,ids)||{}).id||ids.join(' ');
+    const op=(id,n)=>'<option value="'+id+'"'+(id===val?' selected':'')+'>'+esc(n)+'</option>';
+    h+='<label class="lbl-f" for="mr'+i+'" style="margin-top:12px">'+(q.tipo==='mapa'?'Lo que tiene que tocar':'Lo que sale marcado en el mapa')+'</label><select class="in" id="mr'+i+'" data-mapa="rasgo" data-q="'+i+'"><option value="">Elige…</option>'+
+      Object.keys(TIPO_RASGO).map(t=>{const fs=C.f.filter(f=>f.t===t),gs=(C.g||[]).filter(g=>(rasgoDe(M.capa,g.ids[0])||{}).t===t);
+        return fs.length?'<optgroup label="'+esc(TIPO_RASGO[t][0].toUpperCase()+TIPO_RASGO[t].slice(1))+'">'+gs.map(g=>op(g.id,g.n+' (todo)')).join('')+fs.map(f=>op(f.id,f.n)).join('')+'</optgroup>':''}).join('')+
+      (val&&!grupoIgual(M.capa,ids)&&ids.length>1?op(val,nombreMapa(M.capa,ids)):'')+'</select>'+
+      mapaHTML(Object.assign({},q,{tipo:'opciones',mapa:{capa:M.capa,marca:ids,tocar:[]}}),{peq:true})+
+      (q.tipo==='opciones'&&!q.opciones.some(o=>norm(o))?'<p class="hint">Si dejas las respuestas vacías, se ponen solas: el nombre correcto y 3 parecidos.</p>':'')+
+      (q.tipo==='escrita'&&!(q.respuestas||[]).some(r=>norm(r))?'<p class="hint">Si dejas la respuesta vacía, vale el nombre del mapa.</p>':'');
+  }
+  return h+'</div>';
 }
 function renderEditor(){
   if(!E.ed)E.ed=ls.get(LS.borrador,null)||edNuevo();
@@ -2133,7 +2294,7 @@ function validarEditor(){
   const ed=E.ed,errores=[],lista=[];
   ed.preguntas.forEach((q,i)=>{
     if(esVacia(q))return;
-    const full=Object.assign({},q,{curso:q.curso||ed.curso,asignatura:q.asignatura||ed.asignatura});
+    const full=completarMapa(JSON.parse(JSON.stringify(Object.assign({},q,{curso:q.curso||ed.curso,asignatura:q.asignatura||ed.asignatura}))));
     const e=errorDe(full);if(e)errores.push({i,msg:'Pregunta '+(i+1)+': '+e+'.'});else lista.push(limpiar(full));
   });
   document.querySelectorAll('.qbox').forEach(b=>b.classList.toggle('err',errores.some(x=>x.i===+b.dataset.qbox)));
@@ -2181,7 +2342,9 @@ function accionEditor(b){
     case 'tipo':
       if(b.dataset.v===q.tipo)return;
       if(q.tipo==='opciones'){q._ops=q.opciones;q._c=q.correcta}
-      if(b.dataset.v==='vf'){q.opciones=['Verdadero','Falso'];q.correcta=-1}
+      if(q.tipo==='mapa'&&q.mapa){q.mapa.marca=q.mapa.tocar;q.mapa.tocar=[]}
+      if(b.dataset.v==='mapa'){q.opciones=[];q.correcta=-1;if(q.mapa){q.mapa.tocar=q.mapa.marca;q.mapa.marca=[]}}
+      else if(b.dataset.v==='vf'){q.opciones=['Verdadero','Falso'];q.correcta=-1}
       else if(b.dataset.v==='escrita'){q.opciones=[];q.correcta=-1;if(!q.respuestas||!q.respuestas.length)q.respuestas=['']}
       else{q.opciones=q._ops||['','','',''];q.correcta=q._c!=null?q._c:-1}
       q.tipo=b.dataset.v;break;
@@ -2213,6 +2376,8 @@ const PLANTILLA=[
 '  · Cada pregunta lleva un enunciado, 2 o más opciones y UNA con correcta="si".',
 '  · La explicacion es opcional: se muestra después de responder.',
 '  · Verdadero o falso: escribe respuesta="verdadero" o respuesta="falso" y no pongas opciones.',
+'  · Con mapa: <mapa capa="relieve" marca="sistema-central"/> lo marca en el mapa (sin opciones, se ponen solas);',
+'    en una <pregunta tipo="mapa"> usa tocar="sistema-central" y hay que tocarlo en el mapa.',
 '  · Lo más fácil es no escribirlo a mano: usa «Añadir preguntas con IA» en la app.',
 '-->',
 '<banco>',
@@ -2343,6 +2508,15 @@ document.addEventListener('click',e=>{
     return;
   }
   if(e.target.id==='modal')cerrarModal();
+});
+document.addEventListener('change',e=>{
+  const t=e.target;if(E.pant!=='editor'||!E.ed||!t.dataset.mapa)return;
+  const i=+t.dataset.q,q=E.ed.preguntas[i];
+  if(t.dataset.mapa==='capa'){
+    if(!t.value){q.mapa=null;if(q.tipo==='mapa'){q.tipo='opciones';q.opciones=['','','',''];q.correcta=-1}}
+    else q.mapa={capa:t.value,marca:[],tocar:[]};
+  }else if(q.mapa){const ids=idsMapa(q.mapa.capa,t.value);if(q.tipo==='mapa')q.mapa.tocar=ids;else q.mapa.marca=ids}
+  guardarBorrador();renderEditor();const f=$('[data-mapa="'+t.dataset.mapa+'"][data-q="'+i+'"]');if(f)f.focus();
 });
 document.addEventListener('input',e=>{
   const t=e.target;
